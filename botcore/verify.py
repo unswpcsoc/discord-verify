@@ -1,3 +1,4 @@
+import hmac
 import discord
 from discord.ext import commands
 
@@ -64,7 +65,7 @@ class Verify(commands.Cog):
             await self.verify_begin(user)
 
     def get_code(self, user):
-        return hash(user.id + self.secret)
+        return hmac.digest(self.secret, user.id, "sha256")
 
     async def verify_begin(self, user):
         if user.id in self.users:
@@ -96,10 +97,10 @@ class Verify(commands.Cog):
         email = f"z{zid}@student.unsw.edu.au"
         self.users[user.id].email = email
 
-        expected_code = str(self.get_code(user))
+        expected_code = self.get_code(user)
         send_email(self.mail, email, "Discord Verification", f"Your code is {expected_code}")
         actual_code = await request_input(self.bot, user, "Please enter the code sent to your student email (check your spam folder if you don't see it).")
-        while actual_code != expected_code:
+        while not compare_digest(actual_code, expected_code):
             actual_code = await request_input(self.bot, user, "That was not the correct code. Please try again.")
 
         # TODO: Write to database

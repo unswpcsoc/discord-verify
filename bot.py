@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import random
+import secrets
 import smtplib
 import discord
 from discord.ext import commands
@@ -10,7 +10,7 @@ from botcore.utils import admin_check
 from botcore.verify import Verify
 from botcore.sign import Sign
 
-secret = random.randint(0, 99999999)
+secret = secrets.token_bytes(64)
 
 # Set up mail server
 mail = smtplib.SMTP(host=config["smtp-server"], port=config["smtp-port"])
