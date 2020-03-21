@@ -1,5 +1,19 @@
 from discord import DMChannel
 
+from botcore.config import config
+
+# Return whether user has at least one admin role as defined in the config.
+def is_admin(user):
+    return not set(config["admin-roles"]).isdisjoint(map(lambda r: r.id, user.roles))
+
+# Return whether user has at least one admin role as defined in the config.
+# If not an admin, will send a message stating this to the given channel.
+async def admin_check(channel, user):
+    if not is_admin(user):
+        await channel.send("You must be an admin to do that.")
+        return False
+    return True
+
 # DM user with prompt and yes/no reactions.
 # Return True if user reacts yes, False if user reacts no.
 async def request_yes_no(bot, user, prompt):

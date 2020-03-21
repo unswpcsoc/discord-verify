@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 
 from botcore.config import config
+from botcore.utils import admin_check
 from botcore.verify import Verify
 from botcore.sign import Sign
 
@@ -15,6 +16,9 @@ async def on_ready():
 
 @bot.command(name="exit")
 async def cmd_exit(ctx):
+    if not await admin_check(ctx.message.channel, ctx.message.author):
+        return
+
     await ctx.send(f"I am shutting down...")
     await bot.logout()
     print(f"Successfully logged out. Exiting...")
