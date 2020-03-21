@@ -65,7 +65,8 @@ class Verify(commands.Cog):
             await self.verify_begin(user)
 
     def get_code(self, user):
-        return hmac.digest(self.secret, user.id, "sha256")
+        msg = bytes(str(user.id), "utf8")
+        return hmac.new(self.secret, msg, "sha256").hexdigest()
 
     async def verify_begin(self, user):
         if user.id in self.users:
@@ -117,10 +118,10 @@ class Verify(commands.Cog):
         email = await request_input(self.bot, user, "What is your email address?")
         self.users[user.id].email = email
 
-        expected_code = str(self.get_code(user))
+        expected_code = self.get_code(user)
         send_email(self.mail, email, "Discord Verification", f"Your code is {expected_code}")
         actual_code = await request_input(self.bot, user, "Please enter the code sent to your email (check your spam folder if you don't see it).")
-        while actual_code != expected_code:
+        while not compare_digest(actual_code, expected_code):
             actual_code = await request_input(self.bot, user, "That was not the correct code. Please try again.")
 
         attachment = (await request_attachments(self.bot, user, "Please send a message with a photo of your government-issued ID attached."))[0]
