@@ -1,2 +1,2 @@
-# PCSoc-Verification-Bot
+# pcsoc-verification-bot
 PCSoc Verification Bot
