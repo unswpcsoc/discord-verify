@@ -1,9 +1,13 @@
 bot-token: "YOUR-BOT-TOKEN-HERE"
 command-prefix: "!"
 server-id: SERVER-ID-HERE
+verified-role: VERIFIED-ROLE-ID-HERE
 allowed-channels:
   - CHANNEL-ID-HERE
-admin-channels:
-  - CHANNEL-ID-HERE
+admin-channel: CHANNEL-ID-HERE
 admin-roles:
   - ROLE-ID-HERE
+smtp-server: "SMTP-ADDRESS-HERE"
+smtp-port: SMTP-PORT-HERE
+email-address: "EMAIL-ADDRESS-HERE"
+email-password: "EMAIL-PASSWORD-HERE"
