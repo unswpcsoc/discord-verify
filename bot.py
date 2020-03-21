@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import random
+import smtplib
 import discord
 from discord.ext import commands
 
@@ -7,6 +9,14 @@ from botcore.config import config
 from botcore.utils import admin_check
 from botcore.verify import Verify
 from botcore.sign import Sign
+
+secret = random.randint(0, 99999999)
+
+# Set up mail server
+mail = smtplib.SMTP(host=config["smtp-server"], port=config["smtp-port"])
+mail.starttls()
+mail.login(config["email-address"], config["email-password"])
+print("Logged in to mail server")
 
 bot = commands.Bot(command_prefix=config["command-prefix"])
 
@@ -16,14 +26,15 @@ async def on_ready():
 
 @bot.command(name="exit")
 async def cmd_exit(ctx):
-    if not await admin_check(ctx.message.channel, ctx.message.author):
+    if not await admin_check(ctx.channel, ctx.author):
         return
 
-    await ctx.send(f"I am shutting down...")
+    await ctx.send("I am shutting down...")
+    mail.quit()
     await bot.logout()
-    print(f"Successfully logged out. Exiting...")
+    print("Successfully logged out. Exiting...")
 
-bot.add_cog(Verify(bot))
+bot.add_cog(Verify(bot, secret, mail))
 bot.add_cog(Sign(bot))
 
 bot.run(config["bot-token"])

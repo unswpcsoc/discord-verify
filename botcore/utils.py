@@ -1,3 +1,5 @@
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from discord import DMChannel
 
 from botcore.config import config
@@ -32,6 +34,25 @@ async def request_yes_no(bot, user, prompt):
 async def request_input(bot, user, prompt):
     await user.send(prompt)
     def check(_message):
-        return _message.author.id == user.id and \
-            isinstance(_message.channel, DMChannel)
+        return _message.author.id == user.id \
+            and isinstance(_message.channel, DMChannel)
     return (await bot.wait_for("message", check=check)).content
+
+# DM user with prompt.
+# Return the next list of attachments received.
+async def request_attachments(bot, user, prompt):
+    await user.send(prompt)
+    def check(_message):
+        return _message.author.id == user.id \
+            and isinstance(_message.channel, DMChannel) \
+            and len(_message.attachments) > 0
+    return (await bot.wait_for("message", check=check)).attachments
+
+# Send message as an email with title subject to recipient (an email address).
+def send_email(mail_server, recipient, subject, message):
+    msg = MIMEMultipart()
+    msg["From"] = config["email-address"]
+    msg["To"] = recipient
+    msg["Subject"] = subject
+    msg.attach(MIMEText(message, "plain"))
+    mail_server.send_message(msg)
