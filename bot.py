@@ -14,7 +14,7 @@ async def on_ready():
     print(f"Bot running with command prefix {bot.command_prefix}")
 
 @bot.command(name="exit")
-async def exit(ctx):
+async def cmd_exit(ctx):
     await ctx.send(f"I am shutting down...")
     await bot.logout()
     print(f"Successfully logged out. Exiting...")
