@@ -1,8 +1,8 @@
-bot-token: YOUR-BOT-TOKEN-HERE
-command-prefix: !
+bot-token: "YOUR-BOT-TOKEN-HERE"
+command-prefix: "!"
 allowed-channels:
-  - CHANNEL-ID-HERE
+  - "CHANNEL-ID-HERE"
 admin-channels:
-  - CHANNEL-ID-HERE
+  - "CHANNEL-ID-HERE"
 admin-roles:
-  - ROLE-ID-HERE
+  - "ROLE-ID-HERE"
