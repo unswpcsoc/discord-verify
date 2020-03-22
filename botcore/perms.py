@@ -176,7 +176,8 @@ def is_admin_user(error=False):
     """
 
     def predicate(cog, ctx):
-        if cog.bot.guild:
+        member = cog.bot.get_guild(config["server-id"]).get_member(ctx.author.id)
+        if set(config["admin-roles"]).isdisjoint(map(lambda r: r.id, member.roles)):
             if error:
                 raise NotAdminUser("You are not authorised to do that.")
             return False
