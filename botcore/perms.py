@@ -36,6 +36,7 @@ def check(predicate):
         predicate: A function that takes in the cog and the context as arguments
             and returns a boolean value representing the result of a check.
     """
+
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
@@ -68,6 +69,7 @@ def is_verified_user(error=False):
     Raises:
         NotVerified: Check failed and error == True.
     """
+
     def predicate(cog, ctx):
         member = cog.bot.get_guild(config["server-id"]).get_member(ctx.author.id)
         if member is None or config["verified-role"] not in map(lambda r: r.id, member.roles):
@@ -75,6 +77,37 @@ def is_verified_user(error=False):
                 raise NotVerified("You must be verified to do that.")
             return False
         return True
+    return check(predicate)
+
+def was_verified_user(error=False):
+    """
+    Decorator. Only allows method to execute if invoker is verified in the
+    database.
+    Cog must have bot and db as instance variables.
+
+    Args:
+        error: Whether to raise error if check fails.
+
+    Raises:
+        NotVerified: Check failed and error == True.
+    """
+
+    def currently_verified(cog, ctx):
+        member = cog.bot.get_guild(config["server-id"]).get_member(ctx.author.id)
+        if member is None or config["verified-role"] not in map(lambda r: r.id, member.roles):
+            return False
+        return True
+
+    def predicate(cog, ctx):
+        if currently_verified(cog, ctx):
+            return True
+        member_info = cog.db.collection("users").document(str(ctx.author.id)).get().to_dict()
+        if member_info == None or not member_info["verified"]:
+            if error:
+                raise NotVerified("You must be verified to do that.")
+            return False
+        return True
+
     return check(predicate)
 
 def is_unverified_user(error=False):
@@ -89,6 +122,7 @@ def is_unverified_user(error=False):
     Raises:
         AlreadyVerified: Check failed and error == True.
     """
+
     def predicate(cog, ctx):
         member = cog.bot.get_guild(config["server-id"]).get_member(ctx.author.id)
         if member is not None and config["verified-role"] in map(lambda r: r.id, member.roles):
@@ -96,6 +130,36 @@ def is_unverified_user(error=False):
                 raise AlreadyVerified("You are already verified.")
             return False
         return True
+    return check(predicate)
+
+def never_verified_user(error=False):
+    """
+    Decorator. Only allows method to execute if invoker was never verified in
+    the database.
+    Cog must have bot and db as instance variables.
+
+    Args:
+        error: Whether to raise error if check fails.
+
+    Raises:
+        AlreadyVerified: Check failed and error == True.
+    """
+
+    def currently_verified(cog, ctx):
+        member = cog.bot.get_guild(config["server-id"]).get_member(ctx.author.id)
+        if member is None or config["verified-role"] not in map(lambda r: r.id, member.roles):
+            return False
+        return True
+
+    def predicate(cog, ctx):
+        if not currently_verified(cog, ctx):
+            member_info = cog.db.collection("users").document(str(ctx.author.id)).get().to_dict()
+            if member_info == None or not member_info["verified"]:
+                return True
+        if error:
+            raise AlreadyVerified("You are already verified.")
+        return False
+
     return check(predicate)
 
 def is_admin_user(error=False):
@@ -110,6 +174,7 @@ def is_admin_user(error=False):
     Raises:
         NotAdminUser: Check failed and error == True.
     """
+
     def predicate(cog, ctx):
         if cog.bot.guild:
             if error:
@@ -130,6 +195,7 @@ def is_guild_member(error=False):
     Raises:
         NotGuildMember: Check failed and error == True.
     """
+
     def predicate(cog, ctx):
         if cog.bot.get_guild(config["server-id"]).get_member(ctx.author.id) is None:
             if error:
@@ -149,6 +215,7 @@ def in_allowed_channel(error=False):
     Raises:
         NotAllowedChannel: Check failed and error == True.
     """
+
     def predicate(cog, ctx):
         if ctx.channel.id not in config["allowed-channels"]:
             if error:
@@ -168,6 +235,7 @@ def in_admin_channel(error=False):
     Raises:
         NotAdminChannel: Check failed and error == True.
     """
+
     def predicate(cog, ctx):
         if ctx.channel.id != config["admin-channel"]:
             if error:
@@ -186,6 +254,7 @@ def in_dm_channel(error=False):
     Raises:
         NotDMChannel: Check failed and error == True.
     """
+
     def predicate(cog, ctx):
         if ctx.guild is not None:
             if error:
