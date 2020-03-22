@@ -2,9 +2,10 @@ import hmac
 import discord
 from discord.ext import commands
 
+import botcore.perms
 from botcore.config import config
 from botcore.utils import (
-    admin_check, request_yes_no, request_input, send_email, request_attachments
+    request_yes_no, request_input, send_email, request_attachments
 )
 
 class Verify(commands.Cog):
@@ -22,21 +23,15 @@ class Verify(commands.Cog):
             self.email = None
 
     @commands.command(name="verify")
+    @botcore.perms.in_allowed_channel()
+    @botcore.perms.is_unverified_user()
     async def cmd_verify(self, ctx):
-        if ctx.channel.id not in config["allowed-channels"]:
-            return
-
         await self.verify_begin(ctx.author)
 
     @commands.command(name="execverify")
+    @botcore.perms.in_admin_channel()
+    @botcore.perms.is_admin_user()
     async def cmd_exec_verify(self, ctx, user_id):
-        if not await admin_check(ctx.channel, ctx.author):
-            return
-
-        if ctx.channel.id != config["admin-channel"]:
-            await ctx.channel.send("This command can only be used in the admin channel.")
-            return
-
         user_id = int(user_id)
         if user_id not in self.users:
             return
@@ -58,10 +53,8 @@ class Verify(commands.Cog):
         del self.users[user_id]
 
     @commands.command(name="restart")
+    @commands.dm_only()
     async def cmd_restart(self, ctx):
-        if not isinstance(ctx.channel, discord.DMChannel):
-            return
-
         user = ctx.author
         if user.id in self.users:
             del self.users[user.id]
