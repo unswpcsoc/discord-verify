@@ -1,111 +1,47 @@
 from discord import DMChannel
-from discord.ext import commands
+from discord.ext.commands import CheckFailure
 import inspect
 import functools
 
 from botcore.config import config
 
-class NotVerified(commands.CheckFailure):
+class NotVerified(CheckFailure):
     pass
 
-class AlreadyVerified(commands.CheckFailure):
+class AlreadyVerified(CheckFailure):
     pass
 
-class NotAdminUser(commands.CheckFailure):
+class NotAdminUser(CheckFailure):
     pass
 
-class NotAllowedChannel(commands.CheckFailure):
+class NotGuildMember(CheckFailure):
     pass
 
-class NotAdminChannel(commands.CheckFailure):
+class NotAllowedChannel(CheckFailure):
     pass
 
-# Decorator. Only allows command to execute if invoker has the verified role as
-# defined in the config. Raises NotVerified otherwise.
-def is_verified_user():
-    def predicate(ctx):
-        if config["verified-role"] not in map(lambda r: r.id, ctx.author.roles):
-            raise NotVerified("You must be verified to do that.")
-        return True
-    return commands.check(predicate)
+class NotAdminChannel(CheckFailure):
+    pass
 
-# Decorator. Only allows command to execute if invoker does not have the
-# verified role as defined in the config. Raises AlreadyVerified otherwise.
-def is_unverified_user():
-    def predicate(ctx):
-        if config["verified-role"] in map(lambda r: r.id, ctx.author.roles):
-            raise AlreadyVerified("You are already verified.")
-        return True
-    return commands.check(predicate)
+class NotDMChannel(CheckFailure):
+    pass
 
-# Decorator. Only allows command to execute if invoker has at least one admin
-# role as defined in the config. Raises NotAdminUser otherwise.
-def is_admin_user():
-    def predicate(ctx):
-        if set(config["admin-roles"]).isdisjoint(map(lambda r: r.id, ctx.author.roles)):
-            raise NotAdminUser("You are not authorised to do that.")
-        return True
-    return commands.check(predicate)
+def check(predicate):
+    """
+    Decorator. Method is only handled if it passes a check in the form of the
+    function predicate.
+    Can only be used with cogs.
 
-# Decorator. Only allows command to execute if invoked in an allowed channel as
-# defined in the config. Raises NotAllowedChannel otherwise.
-def in_allowed_channel():
-    def predicate(ctx):
-        if ctx.channel.id not in config["allowed-channels"]:
-            raise NotAllowedChannel("You cannot do that in this channel.")
-        return True
-    return commands.check(predicate)
-
-# Decorator. Only allows command to execute if invoked in the admin channel
-# defined in the config. Raises NotAdminChannel otherwise.
-def in_admin_channel():
-    def predicate(ctx):
-        if ctx.channel.id != config["admin-channel"]:
-            raise NotAdminChannel("You must be in the admin channel to do that.")
-        return True
-    return commands.check(predicate)
-
-# Decorator. Event is only handled if user in context has the verified role as
-# defined in the config.
-# Can only be used with cogs.
-def listen_verified():
-    def predicate(bot, ctx):
-        member = bot.get_guild(config["server-id"]).get_member(ctx.author.id)
-        if config["verified-role"] in map(lambda r: r.id, member.roles):
-            return True
-        return False
-    return event_check(predicate)
-
-# Decorator. Event is only handled if user in context does not have the verified
-# role as defined in the config.
-# Can only be used with cogs.
-def listen_unverified():
-    def predicate(bot, ctx):
-        member = bot.get_guild(config["server-id"]).get_member(ctx.author.id)
-        if config["verified-role"] in map(lambda r: r.id, member.roles):
-            return False
-        return True
-    return event_check(predicate)
-
-# Decorator. Event is only handled if context is a DM channel.
-# Can only be used with cogs.
-def listen_dm():
-    def predicate(bot, ctx):
-        if ctx.guild is None:
-            return True
-        return False
-    return event_check(predicate)
-
-# Decorator. Event is only handled if it passes a check in the form of the
-# function predicate.
-# Can only be used with cogs.
-def event_check(predicate):
+    Args:
+        predicate: A function that takes in the cog and the context as arguments
+            and returns a boolean value representing the result of a check.
+    """
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
-            bot = args[0].bot
+            cog = args[0]
             ctx = args[1]
-            if not predicate(bot, ctx):
+            if not predicate(cog, ctx):
                 return
             return await func(*args, **kwargs)
         return wrapper
@@ -119,3 +55,141 @@ def event_check(predicate):
         decorator.predicate = wrapper
 
     return decorator
+
+def is_verified_user(error=False):
+    """
+    Decorator. Only allows method to execute if invoker has the verified role as
+    defined in the config.
+    Cog must have bot as an instance variable.
+
+    Args:
+        error: Whether to raise error if check fails.
+
+    Raises:
+        NotVerified: Check failed and error == True.
+    """
+    def predicate(cog, ctx):
+        member = cog.bot.get_guild(config["server-id"]).get_member(ctx.author.id)
+        if member is None or config["verified-role"] not in map(lambda r: r.id, member.roles):
+            if error:
+                raise NotVerified("You must be verified to do that.")
+            return False
+        return True
+    return check(predicate)
+
+def is_unverified_user(error=False):
+    """
+    Decorator. Only allows method to execute if invoker does not have the
+    verified role defined in the config.
+    Cog must have bot as an instance variable.
+
+    Args:
+        error: Whether to raise error if check fails.
+
+    Raises:
+        AlreadyVerified: Check failed and error == True.
+    """
+    def predicate(cog, ctx):
+        member = cog.bot.get_guild(config["server-id"]).get_member(ctx.author.id)
+        if member is not None and config["verified-role"] in map(lambda r: r.id, member.roles):
+            if error:
+                raise AlreadyVerified("You are already verified.")
+            return False
+        return True
+    return check(predicate)
+
+def is_admin_user(error=False):
+    """
+    Decorator. Only allows method to execute if invoker has at least one admin
+    role as defined in the config.
+    Cog must have bot as an instance variable.
+
+    Args:
+        error: Whether to raise error if check fails.
+
+    Raises:
+        NotAdminUser: Check failed and error == True.
+    """
+    def predicate(cog, ctx):
+        if cog.bot.guild:
+            if error:
+                raise NotAdminUser("You are not authorised to do that.")
+            return False
+        return True
+    return check(predicate)
+
+def is_guild_member(error=False):
+    """
+    Decorator. Only allows method to execute if invoked by a member of the guild
+    defined in the config.
+    Cog must have bot as an instance variable.
+
+    Args:
+        error: Whether to raise error if check fails.
+
+    Raises:
+        NotGuildMember: Check failed and error == True.
+    """
+    def predicate(cog, ctx):
+        if cog.bot.get_guild(config["server-id"]).get_member(ctx.author.id) is None:
+            if error:
+                raise NotGuildMember("You must be a member of the server to do that.")
+            return False
+        return True
+    return check(predicate)
+
+def in_allowed_channel(error=False):
+    """
+    Decorator. Only allows method to execute if invoked in an allowed channel as
+    defined in the config.
+
+    Args:
+        error: Whether to raise error if check fails.
+
+    Raises:
+        NotAllowedChannel: Check failed and error == True.
+    """
+    def predicate(cog, ctx):
+        if ctx.channel.id not in config["allowed-channels"]:
+            if error:
+                raise NotAllowedChannel("You cannot do that in this channel.")
+            return False
+        return True
+    return check(predicate)
+
+def in_admin_channel(error=False):
+    """
+    Decorator. Only allows method to execute if invoked in the admin channel
+    defined in the config.
+
+    Args:
+        error: Whether to raise error if check fails.
+
+    Raises:
+        NotAdminChannel: Check failed and error == True.
+    """
+    def predicate(cog, ctx):
+        if ctx.channel.id != config["admin-channel"]:
+            if error:
+                raise NotAdminChannel("You must be in the admin channel to do that.")
+            return False
+        return True
+    return check(predicate)
+
+def in_dm_channel(error=False):
+    """
+    Decorator. Only allows method to execute if invoked in a DM channel.
+
+    Args:
+        error: Whether to raise error if check fails.
+
+    Raises:
+        NotDMChannel: Check failed and error == True.
+    """
+    def predicate(cog, ctx):
+        if ctx.guild is not None:
+            if error:
+                raise NotDMChannel("You must be in a DM channel to do that.")
+            return False
+        return True
+    return check(predicate)
