@@ -7,8 +7,8 @@ import smtplib
 import discord
 from discord.ext import commands
 
+import botcore.perms
 from botcore.config import config
-from botcore.utils import admin_check
 from botcore.verify import Verify
 from botcore.sign import Sign
 
@@ -41,11 +41,13 @@ bot = commands.Bot(command_prefix=config["command-prefix"])
 async def on_ready():
     print(f"Bot running with command prefix {bot.command_prefix}")
 
-@bot.command(name="exit")
-async def cmd_exit(ctx):
-    if not await admin_check(ctx.channel, ctx.author):
-        return
+@bot.event
+async def on_command_error(ctx, error):
+    await ctx.send(str(error))
 
+@bot.command(name="exit")
+@botcore.perms.is_admin_user()
+async def cmd_exit(ctx):
     await ctx.send("I am shutting down...")
     mail.quit()
     await bot.logout()
