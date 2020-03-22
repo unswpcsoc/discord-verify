@@ -8,9 +8,10 @@ from botcore.utils import (
 )
 
 class Verify(commands.Cog):
-    def __init__(self, bot, secret, mail_server):
+    def __init__(self, bot, secret, db, mail_server):
         self.bot = bot
         self.secret = secret
+        self.db = db
         self.mail = mail_server
         self.users = {}
 
@@ -37,13 +38,15 @@ class Verify(commands.Cog):
             return
 
         user_id = int(user_id)
-
-        # TODO: Write to database
+        if user_id not in self.users:
+            return
 
         admin_channel = ctx.guild.get_channel(config["admin-channel"])
 
-        if user_id not in self.users:
-            return
+        self.db.collection("users").document(str(user_id)).set({
+            "full_name": self.users[user_id].full_name,
+            "email": self.users[user_id].email
+        })
 
         user = ctx.guild.get_member(user_id)
 
@@ -80,7 +83,8 @@ class Verify(commands.Cog):
             await self.verify_non_unsw(user)
 
     async def verify_unsw(self, user):
-        self.users[user.id].full_name = await request_input(self.bot, user, "What is your full name as it appears on your student ID?")
+        full_name = await request_input(self.bot, user, "What is your full name as it appears on your student ID?")
+        self.users[user.id].full_name = full_name
 
         zid = await request_input(self.bot, user, "What is your 7 digit student number, not including the 'z' at the start?")
         while True:
@@ -104,7 +108,11 @@ class Verify(commands.Cog):
         while not hmac.compare_digest(actual_code, expected_code):
             actual_code = await request_input(self.bot, user, "That was not the correct code. Please try again.")
 
-        # TODO: Write to database
+        self.db.collection("users").document(str(user.id)).set({
+            "zid": zid,
+            "full_name": full_name,
+            "email": email
+        })
 
         await user.add_roles(user.guild.get_role(config["verified-role"]))
         await user.send("You are now verified. Welcome to the server!")

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import firebase_admin
+from firebase_admin import credentials, firestore
 import secrets
 import smtplib
 import discord
@@ -11,6 +13,12 @@ from botcore.verify import Verify
 from botcore.sign import Sign
 
 secret = secrets.token_bytes(64)
+
+# Set up Firebase connection
+cred = credentials.Certificate("config/firebase_credentials.json")
+default_app = firebase_admin.initialize_app(cred)
+db = firestore.client()
+print("Logged in to Firebase")
 
 # Set up mail server
 mail = smtplib.SMTP(host=config["smtp-server"], port=config["smtp-port"])
@@ -34,7 +42,7 @@ async def cmd_exit(ctx):
     await bot.logout()
     print("Successfully logged out. Exiting...")
 
-bot.add_cog(Verify(bot, secret, mail))
+bot.add_cog(Verify(bot, secret, db, mail))
 bot.add_cog(Sign(bot))
 
 bot.run(config["bot-token"])
