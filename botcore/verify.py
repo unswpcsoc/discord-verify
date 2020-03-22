@@ -101,7 +101,7 @@ class Verify(commands.Cog):
         expected_code = self.get_code(user)
         send_email(self.mail, email, "Discord Verification", f"Your code is {expected_code}")
         actual_code = await request_input(self.bot, user, "Please enter the code sent to your student email (check your spam folder if you don't see it).")
-        while not compare_digest(actual_code, expected_code):
+        while not hmac.compare_digest(actual_code, expected_code):
             actual_code = await request_input(self.bot, user, "That was not the correct code. Please try again.")
 
         # TODO: Write to database
@@ -121,7 +121,7 @@ class Verify(commands.Cog):
         expected_code = self.get_code(user)
         send_email(self.mail, email, "Discord Verification", f"Your code is {expected_code}")
         actual_code = await request_input(self.bot, user, "Please enter the code sent to your email (check your spam folder if you don't see it).")
-        while not compare_digest(actual_code, expected_code):
+        while not hmac.compare_digest(actual_code, expected_code):
             actual_code = await request_input(self.bot, user, "That was not the correct code. Please try again.")
 
         attachment = (await request_attachments(self.bot, user, "Please send a message with a photo of your government-issued ID attached."))[0]
