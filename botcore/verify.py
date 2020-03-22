@@ -23,14 +23,14 @@ class Verify(commands.Cog):
             self.email = None
 
     @commands.command(name="verify")
-    @botcore.perms.in_allowed_channel()
-    @botcore.perms.is_unverified_user()
+    @botcore.perms.in_allowed_channel(error=True)
+    @botcore.perms.is_unverified_user(error=True)
     async def cmd_verify(self, ctx):
         await self.verify_begin(ctx.author)
 
     @commands.command(name="execverify")
-    @botcore.perms.in_admin_channel()
-    @botcore.perms.is_admin_user()
+    @botcore.perms.in_admin_channel(error=True)
+    @botcore.perms.is_admin_user(error=True)
     async def cmd_exec_verify(self, ctx, user_id):
         user_id = int(user_id)
         if user_id not in self.users:
@@ -53,7 +53,8 @@ class Verify(commands.Cog):
         del self.users[user_id]
 
     @commands.command(name="restart")
-    @commands.dm_only()
+    @botcore.perms.in_dm_channel()
+    @botcore.perms.is_guild_member(error=True)
     async def cmd_restart(self, ctx):
         user = ctx.author
         if user.id in self.users:
@@ -65,8 +66,8 @@ class Verify(commands.Cog):
         pass
 
     @commands.Cog.listener()
-    @botcore.perms.listen_dm()
-    @botcore.perms.listen_unverified()
+    @botcore.perms.in_dm_channel()
+    @botcore.perms.is_unverified_user()
     async def on_message(self, message):
         member = message.author
 
