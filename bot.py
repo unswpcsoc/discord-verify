@@ -12,13 +12,22 @@ from botcore.utils import admin_check
 from botcore.verify import Verify
 from botcore.sign import Sign
 
-secret = secrets.token_bytes(64)
-
 # Set up Firebase connection
 cred = credentials.Certificate("config/firebase_credentials.json")
 default_app = firebase_admin.initialize_app(cred)
 db = firestore.client()
 print("Logged in to Firebase")
+
+# Get verification secret
+try:
+    secret = db.collection("secrets").document("verify").get().to_dict()["secret"]
+except TypeError:
+    print("Generating new verification secret...")
+    secret = secrets.token_bytes(64)
+    db.collection("secrets").document("verify").set({"secret": secret})
+    print("Saved verification secret in Firebase")
+else:
+    print("Fetched verification secret from Firebase")
 
 # Set up mail server
 mail = smtplib.SMTP(host=config["smtp-server"], port=config["smtp-port"])
