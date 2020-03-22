@@ -60,6 +60,23 @@ class Verify(commands.Cog):
             del self.users[user.id]
             await self.verify_begin(user)
 
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+        pass
+
+    @commands.Cog.listener()
+    @botcore.perms.listen_dm()
+    @botcore.perms.listen_unverified()
+    async def on_message(self, message):
+        member = message.author
+
+        if member.id in self.users:
+            member_info = self.users[member.id]
+        else:
+            member_info = self.db.collection("users").document(str(member.id)).get().to_dict()
+            if member_info is None:
+                return
+
     def get_code(self, user):
         msg = bytes(str(user.id), "utf8")
         return hmac.new(self.secret, msg, "sha256").hexdigest()
@@ -129,4 +146,4 @@ class Verify(commands.Cog):
         attached_file = await attachment.to_file()
 
         admin_channel = user.guild.get_channel(config["admin-channel"])
-        await admin_channel.send(f"Received attachment from {user.mention}. Please verify that name on ID is {full_name}, then type `!execverify {user.id}`.", file=attached_file)
+        await admin_channel.send(f"Received attachment from {user.mention}. Please verify that name on ID is `{full_name}`, then type `!execverify {user.id}`.", file=attached_file)
