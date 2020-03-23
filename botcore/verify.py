@@ -98,7 +98,7 @@ class Verify(commands.Cog):
     @botcore.perms.is_human()
     @botcore.perms.was_verified_user()
     async def on_member_join(self, member):
-        pass
+        await self.proc_grant_rank(member)
 
     @commands.Cog.listener()
     @botcore.perms.in_dm_channel()
