@@ -7,7 +7,6 @@ import botcore.perms
 from botcore.db import MemberKey, SecretID, MemberNotFound
 from botcore.mail import MailError
 from botcore.config import config
-from botcore.utils import send_email
 
 def _next_state(state):
     def decorator(func):
