@@ -7,7 +7,7 @@ allowed-channels:
 admin-channel: CHANNEL-ID-HERE
 admin-roles:
   - ROLE-ID-HERE
-smtp-server: "SMTP-ADDRESS-HERE"
-smtp-port: SMTP-PORT-HERE
-email-address: "EMAIL-ADDRESS-HERE"
-email-password: "EMAIL-PASSWORD-HERE"
+email-address: "YOUR-EMAIL-ADDRESS-HERE"
+aws-region: "ap-southeast-2"
+aws-access-key-id: "YOUR-AWS-ACCESS-KEY-ID-HERE"
+aws-secret-access-key: "YOUR-AWS-SECRET-ACCESS-KEY-HERE"

@@ -5,6 +5,7 @@ from discord.ext import commands
 
 import botcore.perms
 from botcore.db import MemberKey, SecretID, MemberNotFound
+from botcore.mail import MailError
 from botcore.config import config
 from botcore.utils import send_email
 
@@ -29,9 +30,8 @@ class Verify(commands.Cog):
         AWAIT_ID = 5
         AWAIT_APPROVAL = 6
 
-    def __init__(self, bot, mail_server):
+    def __init__(self, bot):
         self.bot = bot
-        self.mail = mail_server
         self._secret = None
         self.state_handler = [
             self.state_await_name,
@@ -43,6 +43,10 @@ class Verify(commands.Cog):
             self.state_await_approval
         ]
         self.verifying = self.db.get_unverified_members_data()
+
+    @property
+    def guild(self):
+        return self.bot.get_guild(config["server-id"])
 
     @property
     def db(self):
@@ -57,8 +61,8 @@ class Verify(commands.Cog):
         return self._secret
 
     @property
-    def guild(self):
-        return self.bot.get_guild(config["server-id"])
+    def mail(self):
+        return self.bot.get_cog("Mail")
 
     @commands.command(name="verify")
     @botcore.perms.in_allowed_channel(error=True)
@@ -215,12 +219,24 @@ class Verify(commands.Cog):
 
             await self.proc_send_email(member)
 
-    @_next_state(State.AWAIT_CODE)
     async def proc_send_email(self, member):
         email = self.verifying[member.id][MemberKey.EMAIL]
         code = self.get_code(member)
-        send_email(self.mail, email, "Discord Verification", 
-            f"Your code is {code}")
+
+        try:
+            self.mail.send_email(email, "Discord Verification", 
+                f"Your code is {code}")
+        except MailError:
+            print(f"Failed to send email to {email}")
+            await member.send("Oops! Something went wrong while attempting "
+                "to send you an email. Please ensure that your details have "
+                "been entered correctly.")
+            return
+        
+        await self.proc_request_code(member)
+
+    @_next_state(State.AWAIT_CODE)
+    async def proc_request_code(self, member):
         await member.send("Please enter the code sent to your email "
             "(check your spam folder if you don't see it).\n"
             "You can request another email by typing `!resend`.")
