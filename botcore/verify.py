@@ -5,9 +5,7 @@ from discord.ext import commands
 
 import botcore.perms
 from botcore.config import config
-from botcore.utils import (
-    request_yes_no, request_input, send_email, request_attachments
-)
+from botcore.utils import send_email
 
 class Verify(commands.Cog):
     STATE_AWAIT_NAME, STATE_AWAIT_UNSW, STATE_AWAIT_ZID, STATE_AWAIT_EMAIL, \
