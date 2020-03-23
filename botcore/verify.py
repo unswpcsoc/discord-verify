@@ -134,7 +134,7 @@ class Verify(commands.Cog):
         await self.verify_proc_request_unsw(member)
 
     async def verify_proc_request_unsw(self, member):
-        await member.send("Are you a UNSW student? Please type 'y' or 'n'.")
+        await member.send("Are you a UNSW student? Please type `y` or `n`.")
         self.verifying[member.id].state = self.STATE_AWAIT_UNSW
 
     async def verify_state_await_unsw(self, member, message):
@@ -144,7 +144,7 @@ class Verify(commands.Cog):
         elif ans == "n":
             await self.verify_proc_request_email(member)
         else:
-            await member.send("Please type 'y' or 'n'.")
+            await member.send("Please type `y` or `n`.")
 
     async def verify_proc_request_zid(self, member):
         await member.send("What is your 7 digit student number, not including the 'z' at the start?")
