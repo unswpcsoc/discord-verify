@@ -21,18 +21,12 @@ class Verify(commands.Cog):
     def guild(self):
         return self.bot.get_guild(config["server-id"])
 
-    class VerifyStep(Enum):
-        pass
-
     class VerifyState():
         def __init__(self):
-            self.step = 0
             self.full_name = None
-            self.is_unsw = False
             self.zid = None
             self.email = None
             self.email_verified = False
-            self.verified = False
 
     def fetch_unverified(self):
         states = {}
@@ -40,11 +34,9 @@ class Verify(commands.Cog):
         for member_doc in member_docs:
             states[member_doc.id] = self.VerifyState()
             member_info = member_doc.to_dict()
-            states[member_doc.id].full_name = member_info["full-name"]
-            states[member_doc.id].is_unsw = member_info["zid"] is not None
+            states[member_doc.id].full_name = member_info["full_name"]
             states[member_doc.id].zid = member_info["zid"]
             states[member_doc.id].email = member_info["email"]
-            states[member_doc.id].email_verified = member_info["email_verified"]
             states[member_doc.id].verified = member_info["verified"]
         return states
 
@@ -67,7 +59,17 @@ class Verify(commands.Cog):
     async def cmd_restart(self, ctx):
         await self.verify_restart(ctx.author)
 
+    @commands.command(name="resend")
+    @botcore.perms.in_dm_channel()
+    @botcore.perms.is_guild_member(error=True)
+    @botcore.perms.is_unverified_user()
+    async def cmd_resend(self, ctx):
+        member = self.guild.get_member(ctx.author.id)
+        email = self.states[member.id].email
+        await self.verify_email(member, email)
+
     @commands.Cog.listener()
+    @botcore.perms.is_human()
     @botcore.perms.was_verified_user()
     async def on_member_join(self, member):
         pass
@@ -80,22 +82,14 @@ class Verify(commands.Cog):
         if member.id in self.states:
             await member.send("You are already undergoing the verification process. To restart, type `!restart`.")
             return
-        
-        member_doc = self.db.collection("users").document(str(member.id))
-        member_info = member_doc.get().to_dict()
-        if member_info is not None and not member_info["verified"]:
-            await member.send("You are already undergoing the verification process. To restart, type `!restart`.")
-            return
 
         self.states[member.id] = self.VerifyState()
 
-        self.states[member.id].full_name = await request_input(self.bot, member, "What is your full name as it appears on your government-issued ID?")
+        self.states[member.id].full_name = await request_input(self.bot, member, "What is your full name as it appears on your government-issued ID?\nYou can restart this verification process at any time by typing `!restart`.")
 
-        if await request_yes_no(self.bot, member, "Are you a UNSW student? You can restart this verification process at any time by typing `!restart`."):
-            self.states[member.id].is_unsw = True
+        if await request_yes_no(self.bot, member, "Are you a UNSW student?"):
             await self.verify_unsw(member)
         else:
-            self.states[member.id].is_unsw = False
             await self.verify_non_unsw(member)
 
     async def verify_unsw(self, member):
@@ -114,73 +108,74 @@ class Verify(commands.Cog):
         email = f"z{zid}@student.unsw.edu.au"
         self.states[member.id].email = email
 
-        self.db.collection("users").document(str(member.id)).set({
-            "full_name": self.states[member.id].full_name,
-            "zid": zid,
-            "email": email,
-            "email-verified": False,
-            "verified": False
-        })
-
-        expected_code = self.get_code(member)
-        send_email(self.mail, email, "Discord Verification", f"Your code is {expected_code}")
-        actual_code = await request_input(self.bot, member, "Please enter the code sent to your student email (check your spam folder if you don't see it).")
-        while not hmac.compare_digest(actual_code, expected_code):
-            actual_code = await request_input(self.bot, member, "That was not the correct code. Please try again.")
-        self.db.collection("users").document(str(member.id)).update({
-            "email-verified": True
-        })
-        self.states[member.id].email_verified = True
-
-        await self.verify_complete(member)
+        await self.verify_email(member, email)
 
     async def verify_non_unsw(self, member):
         email = await request_input(self.bot, member, "What is your email address?")
         self.states[member.id].email = email
 
-        self.db.collection("users").document(str(member.id)).set({
-            "full_name": self.states[member.id].full_name,
-            "zid": None,
-            "email": email,
-            "email-verified": False,
-            "verified": False
-        })
+        await self.verify_email(member, email)
 
-        expected_code = self.get_code(member)
-        send_email(self.mail, email, "Discord Verification", f"Your code is {expected_code}")
-        actual_code = await request_input(self.bot, member, "Please enter the code sent to your email (check your spam folder if you don't see it).")
+    async def verify_email(self, member, email):
+        async with member.typing():
+            self.db.collection("users").document(str(member.id)).set({
+                "full_name": self.states[member.id].full_name,
+                "zid": self.states[member.id].zid,
+                "email": email,
+                "verified": False
+            })
+            expected_code = self.get_code(member)
+            send_email(self.mail, email, "Discord Verification", f"Your code is {expected_code}")
+        
+        actual_code = await request_input(self.bot, member, "Please enter the code sent to your email (check your spam folder if you don't see it).\nYou can request another email by typing `!resend`.")
         while not hmac.compare_digest(actual_code, expected_code):
             actual_code = await request_input(self.bot, member, "That was not the correct code. Please try again.")
-        self.db.collection("users").document(str(member.id)).update({
-            "email-verified": True
-        })
         self.states[member.id].email_verified = True
 
+        if self.states[member.id].zid is None:
+            await self.verify_id(member)
+        else:
+            await self.verify_complete(member)
+
+    async def verify_id(self, member):
         attachment = (await request_attachments(self.bot, member, "Please send a message with a photo of your government-issued ID attached."))[0]
-        attached_file = await attachment.to_file()
 
-        admin_channel = self.guild.get_channel(config["admin-channel"])
-        await admin_channel.send(f"Received attachment from {member.mention}. Please verify that name on ID is `{self.states[member.id].full_name}`, then type `!execverify {member.id}`.", file=attached_file)
+        async with member.typing():
+            attached_file = await attachment.to_file()
 
-        await member.send("Your attachment has been forwarded to the admins. Please wait.")
+            admin_channel = self.guild.get_channel(config["admin-channel"])
+            await admin_channel.send(f"Received attachment from {member.mention}. Please verify that name on ID is `{self.states[member.id].full_name}`, then type `!execverify {member.id}`.", file=attached_file)
+
+            await member.send("Your attachment has been forwarded to the admins. Please wait.")
 
     async def exec_verify(self, member):
-        # TODO: prevent processing if member already verified or never went
-        #       through earlier steps
+        admin_channel = self.guild.get_channel(config["admin-channel"])
+        if member.id not in self.states:
+            await admin_channel.send("That user is not currently undergoing verification.")
 
         await self.verify_complete(member)
 
+    async def exec_reject(self, member):
+        admin_channel = self.guild.get_channel(config["admin-channel"])
+        if member.id not in self.states:
+            await admin_channel.send("That user is not currently undergoing verification.")
+        
+        pass
+
     async def verify_complete(self, member):
-        self.db.collection("users").document(str(member.id)).update({
-            "verified": True
-        })
-        self.states[member.id].verified = True
+        async with member.typing():
+            self.db.collection("users").document(str(member.id)).set({
+                "full_name": self.states[member.id].full_name,
+                "zid": self.states[member.id].zid,
+                "email": self.states[member.id].email,
+                "verified": True
+            })
 
-        await member.add_roles(self.guild.get_role(config["verified-role"]))
+            await member.add_roles(self.guild.get_role(config["verified-role"]))
 
-        del self.states[member.id]
+            del self.states[member.id]
 
-        await member.send("You are now verified. Welcome to the server!")
+            await member.send("You are now verified. Welcome to the server!")
 
         admin_channel = self.guild.get_channel(config["admin-channel"])
         await admin_channel.send(f"{member.mention} is now verified.")
