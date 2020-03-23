@@ -263,3 +263,15 @@ def in_dm_channel(error=False):
             return False
         return True
     return check(predicate)
+
+def is_human():
+    """
+    Decorator. Prevents the bot from handling events triggered by bots,
+    including itself.
+    """
+    
+    def predicate(cog, ctx):
+        if ctx.author.bot:
+            return False
+        return True
+    return check(predicate)
