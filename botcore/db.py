@@ -26,9 +26,15 @@ class Database(commands.Cog):
         
         Returns:
             Dictionary containing all keys and values associated with a member.
+        
+        Raises:
+            MemberNotFound: If member does not exist in the database.
         """
 
-        return self._get_member_doc(id).get().to_dict()
+        data = self._get_member_doc(id).get().to_dict()
+        if data is None:
+            raise MemberNotFound
+        return data
 
     def get_unverified_members_data(self):
         """
@@ -95,11 +101,10 @@ class Database(commands.Cog):
             Secret bytes associated with id or None if no such secret exists.
         """
 
-        try:
-            return self._get_secrets_col().document(str(id)).get() \
-                .to_dict()["secret"]
-        except KeyError:
+        doc = self._get_secrets_col().document(str(id)).get().to_dict()
+        if doc is None:
             return None
+        return doc["secret"]
 
     def set_secret(self, id, bytes):
         """
@@ -111,7 +116,7 @@ class Database(commands.Cog):
             bytes: Value to be associated with id.
         """
 
-        self._get_secrets_col().document(str(id)).set({id: bytes})
+        self._get_secrets_col().document(str(id)).set({"secret": bytes})
 
     def _connect(self):
         """

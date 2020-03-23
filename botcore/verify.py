@@ -5,6 +5,7 @@ import hmac
 from discord.ext import commands
 
 import botcore.perms
+from botcore.db import MemberNotFound
 from botcore.config import config
 from botcore.utils import send_email
 
@@ -13,8 +14,9 @@ def next_state(state):
         @wraps(func)
         async def wrapper(self, member, *args):
             await func(self, member, *args)
-            self.db.update_member_data(member.id, {"_state": state})
-            self.verifying[member.id].state = state
+            patch = {"_state": state}
+            self.db.update_member_data(member.id, patch)
+            self.verifying[member.id].update(patch)
         return wrapper
     return decorator
 
@@ -57,8 +59,8 @@ class Verify(commands.Cog):
             print("Retrieved verification secret from Firebase")
         else:
             print("Generating new verification secret...")
-            secret = secrets.token_bytes(64)
-            self.db.set_secret("verify", secret)
+            self._secret = secrets.token_bytes(64)
+            self.db.set_secret("verify", self._secret)
             print("Saved verification secret in Firebase")
         return self._secret
 
@@ -120,12 +122,20 @@ class Verify(commands.Cog):
                 "process. To restart, type `!restart`.")
             return
         
+        try:
+            if self.db.get_member_data(member.id)["id_verified"]:
+                await self.proc_grant_rank(member)
+                return
+        except MemberNotFound:
+            pass
+
         default_data = {
             "_state": None,
             "full_name": None,
             "zid": None,
             "email": None,
-            "email_verified": None
+            "email_verified": False,
+            "id_verified": False
         }
         self.verifying[member.id] = default_data
         self.db.set_member_data(member.id, default_data)
@@ -133,6 +143,10 @@ class Verify(commands.Cog):
         await self.proc_request_name(member)
 
     async def proc_restart(self, user):
+        if user.id not in self.verifying:
+            await user.send("You are not currently being verified.")
+            return
+
         del self.verifying[user.id]
         await self.proc_begin(user)
 
@@ -146,7 +160,7 @@ class Verify(commands.Cog):
     async def state_await_name(self, member, message):
         full_name = message.content
         self.db.update_member_data(member.id, {"full_name": full_name})
-        self.verifying[member.id]["full-name"] = full_name
+        self.verifying[member.id]["full_name"] = full_name
         await self.proc_request_unsw(member)
 
     @next_state(State.AWAIT_UNSW)
@@ -203,7 +217,7 @@ class Verify(commands.Cog):
 
     @next_state(State.AWAIT_CODE)
     async def proc_send_email(self, member):
-        email = self.verifying[member.id].email
+        email = self.verifying[member.id]["email"]
         code = self.get_code(member)
         send_email(self.mail, email, "Discord Verification", 
             f"Your code is {code}")
@@ -225,14 +239,14 @@ class Verify(commands.Cog):
             self.db.update_member_data(member.id, patch)
             self.verifying[member.id].update(patch)
             
-            if self.verifying[member.id].zid is None:
+            if self.verifying[member.id]["zid"] is None:
                 await self.proc_request_id(member)
             else:
                 await self.proc_grant_rank(member)
 
     async def proc_resend_email(self, member):
         if member.id in self.verifying \
-            and self.verifying[member.id].state == self.State.AWAIT_CODE:
+            and self.verifying[member.id]["_state"] == self.State.AWAIT_CODE:
             await self.proc_send_email(member)
 
     @next_state(State.AWAIT_ID)
@@ -253,7 +267,7 @@ class Verify(commands.Cog):
     async def proc_send_id_admins(self, member, attachments):
         first_file = await attachments[0].to_file()
         admin_channel = self.guild.get_channel(config["admin-channel"])
-        full_name = self.verifying[member.id].full_name
+        full_name = self.verifying[member.id]["full_name"]
         await admin_channel.send(f"Received attachment from {member.mention}. "
             f"Please verify that name on ID is `{full_name}`, "
             f"then type `!execapprove {member.id}` "
@@ -271,7 +285,7 @@ class Verify(commands.Cog):
             await admin_channel.send("That user is not currently "
                 "undergoing verification.")
 
-        if self.verifying[member.id].state != self.State.AWAIT_APPROVAL:
+        if self.verifying[member.id]["_state"] != self.State.AWAIT_APPROVAL:
             await admin_channel.send("That user is still "
                 "undergoing verification.")
 
@@ -288,7 +302,8 @@ class Verify(commands.Cog):
     async def proc_grant_rank(self, member):
         self.db.update_member_data(member.id, {"id_verified": True})
         await member.add_roles(self.guild.get_role(config["verified-role"]))
-        del self.verifying[member.id]
+        if member.id in self.verifying:
+            del self.verifying[member.id]
         await member.send("You are now verified. Welcome to the server!")
 
         admin_channel = self.guild.get_channel(config["admin-channel"])
