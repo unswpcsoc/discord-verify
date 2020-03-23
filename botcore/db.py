@@ -2,7 +2,6 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import google.cloud.exceptions
 from secrets import token_bytes
-
 from discord.ext import commands
 
 class MemberNotFound(Exception):
