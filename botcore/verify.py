@@ -114,11 +114,22 @@ class Verify(commands.Cog):
         email = f"z{zid}@student.unsw.edu.au"
         self.states[member.id].email = email
 
+        self.db.collection("users").document(str(member.id)).set({
+            "full_name": self.states[member.id].full_name,
+            "zid": zid,
+            "email": email,
+            "email-verified": False,
+            "verified": False
+        })
+
         expected_code = self.get_code(member)
         send_email(self.mail, email, "Discord Verification", f"Your code is {expected_code}")
         actual_code = await request_input(self.bot, member, "Please enter the code sent to your student email (check your spam folder if you don't see it).")
         while not hmac.compare_digest(actual_code, expected_code):
             actual_code = await request_input(self.bot, member, "That was not the correct code. Please try again.")
+        self.db.collection("users").document(str(member.id)).update({
+            "email-verified": True
+        })
         self.states[member.id].email_verified = True
 
         await self.verify_complete(member)
@@ -127,11 +138,22 @@ class Verify(commands.Cog):
         email = await request_input(self.bot, member, "What is your email address?")
         self.states[member.id].email = email
 
+        self.db.collection("users").document(str(member.id)).set({
+            "full_name": self.states[member.id].full_name,
+            "zid": None,
+            "email": email,
+            "email-verified": False,
+            "verified": False
+        })
+
         expected_code = self.get_code(member)
         send_email(self.mail, email, "Discord Verification", f"Your code is {expected_code}")
         actual_code = await request_input(self.bot, member, "Please enter the code sent to your email (check your spam folder if you don't see it).")
         while not hmac.compare_digest(actual_code, expected_code):
             actual_code = await request_input(self.bot, member, "That was not the correct code. Please try again.")
+        self.db.collection("users").document(str(member.id)).update({
+            "email-verified": True
+        })
         self.states[member.id].email_verified = True
 
         attachment = (await request_attachments(self.bot, member, "Please send a message with a photo of your government-issued ID attached."))[0]
