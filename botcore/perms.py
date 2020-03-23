@@ -25,16 +25,13 @@ def check(predicate, error):
 
     def decorator(func):
         @wraps(func)
-        async def wrapper(*args, **kwargs):
-            cog = args[0]
-            ctx = args[1]
-            
+        async def wrapper(cog, ctx, *args, **kwargs):
             res, err_msg = await async_predicate(cog, ctx)
             if not res:
                 if error:
                     await ctx.send(err_msg)
                 return
-            return await func(*args, **kwargs)
+            return await func(cog, ctx, *args, **kwargs)
         return wrapper
 
     return decorator
