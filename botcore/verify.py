@@ -133,7 +133,7 @@ class Verify(commands.Cog):
             MemberKey.STATE: None,
             MemberKey.NAME: None,
             MemberKey.ZID: None,
-            "email": None,
+            MemberKey.EMAIL: None,
             MemberKey.EMAIL_VER: False,
             MemberKey.ID_VER: False
         }
@@ -195,7 +195,7 @@ class Verify(commands.Cog):
         email = f"z{zid}@student.unsw.edu.au"
 
         async with member.typing():
-            patch = {MemberKey.ZID: zid, "email": email}
+            patch = {MemberKey.ZID: zid, MemberKey.EMAIL: email}
             self.db.update_member_data(member.id, patch)
             self.verifying[member.id].update(patch)
 
@@ -209,7 +209,7 @@ class Verify(commands.Cog):
         email = message.content
 
         async with member.typing():
-            patch = {"email": email}
+            patch = {MemberKey.EMAIL: email}
             self.db.update_member_data(member.id, patch)
             self.verifying[member.id].update(patch)
 
@@ -217,7 +217,7 @@ class Verify(commands.Cog):
 
     @_next_state(State.AWAIT_CODE)
     async def proc_send_email(self, member):
-        email = self.verifying[member.id]["email"]
+        email = self.verifying[member.id][MemberKey.EMAIL]
         code = self.get_code(member)
         send_email(self.mail, email, "Discord Verification", 
             f"Your code is {code}")
