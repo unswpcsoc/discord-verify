@@ -10,63 +10,75 @@ from botcore.utils import (
 )
 
 class Verify(commands.Cog):
+    STATE_AWAIT_NAME, STATE_AWAIT_UNSW, STATE_AWAIT_ZID, STATE_AWAIT_EMAIL, \
+        STATE_AWAIT_CODE, STATE_AWAIT_ID, STATE_AWAIT_APPROVAL = range(7)
+
     def __init__(self, bot, secret, db, mail_server):
         self.bot = bot
         self.secret = secret
         self.db = db
         self.mail = mail_server
-        self.states = self.fetch_unverified()
+        self.state_handler = [
+            self.verify_state_await_name,
+            self.verify_state_await_unsw,
+            self.verify_state_await_zid,
+            self.verify_state_await_email,
+            self.verify_state_await_code,
+            self.verify_state_await_id,
+            self.verify_state_await_approval
+        ]
+        self.verifying = self.fetch_verifying()
 
     @property
     def guild(self):
         return self.bot.get_guild(config["server-id"])
 
-    class VerifyState():
+    class VerifyingMember():
         def __init__(self):
+            self.state = None
             self.full_name = None
             self.zid = None
             self.email = None
             self.email_verified = False
 
-    def fetch_unverified(self):
-        states = {}
-        member_docs = self.db.collection("users").where("verified", "==", False).stream()
+    def fetch_verifying(self):
+        verifying = {}
+        member_docs = self.db.collection("members").where("id_verified", "==", False).stream()
         for member_doc in member_docs:
-            states[member_doc.id] = self.VerifyState()
             member_info = member_doc.to_dict()
-            states[member_doc.id].full_name = member_info["full_name"]
-            states[member_doc.id].zid = member_info["zid"]
-            states[member_doc.id].email = member_info["email"]
-            states[member_doc.id].verified = member_info["verified"]
-        return states
+            verifying[member_doc.id] = self.VerifyingMember()
+            verifying[member_doc.id].state = member_info["_state"]
+            verifying[member_doc.id].full_name = member_info["full_name"]
+            verifying[member_doc.id].zid = member_info["zid"]
+            verifying[member_doc.id].email = member_info["email"]
+            verifying[member_doc.id].email_verified = member_info["email_verified"]
+        return verifying
 
     @commands.command(name="verify")
     @botcore.perms.in_allowed_channel(error=True)
     @botcore.perms.is_unverified_user(error=True)
     async def cmd_verify(self, ctx):
-        await self.verify_begin(ctx.author)
+        await self.verify_proc_begin(ctx.author)
 
-    @commands.command(name="execverify")
+    @commands.command(name="execapprove")
     @botcore.perms.in_admin_channel(error=True)
     @botcore.perms.is_admin_user(error=True)
     async def cmd_exec_verify(self, ctx, member_id):
-        await self.exec_verify(self.guild.get_member(int(member_id)))
+        await self.verify_proc_exec_approve(self.guild.get_member(int(member_id)))
 
     @commands.command(name="restart")
     @botcore.perms.in_dm_channel()
     @botcore.perms.is_guild_member(error=True)
     @botcore.perms.is_unverified_user()
     async def cmd_restart(self, ctx):
-        await self.verify_restart(ctx.author)
+        await self.verify_proc_restart(ctx.author)
 
     @commands.command(name="resend")
     @botcore.perms.in_dm_channel()
     @botcore.perms.is_guild_member(error=True)
     @botcore.perms.is_unverified_user()
     async def cmd_resend(self, ctx):
-        member = self.guild.get_member(ctx.author.id)
-        email = self.states[member.id].email
-        await self.verify_email(member, email)
+        await self.verify_proc_resend_email(self.guild.get_member(ctx.author.id))
 
     @commands.Cog.listener()
     @botcore.perms.is_human()
@@ -74,112 +86,180 @@ class Verify(commands.Cog):
     async def on_member_join(self, member):
         pass
 
+    @commands.Cog.listener()
+    @botcore.perms.in_dm_channel()
+    @botcore.perms.is_human()
+    @botcore.perms.is_not_command()
+    @botcore.perms.is_guild_member()
+    @botcore.perms.is_unverified_user()
+    async def on_message(self, message):
+        member = self.guild.get_member(message.author.id)
+        if member.id in self.verifying:
+            await self.state_handler[self.verifying[member.id].state](member, message)
+
     def get_code(self, user):
         msg = bytes(str(user.id), "utf8")
         return hmac.new(self.secret, msg, "sha256").hexdigest()
 
-    async def verify_begin(self, member):
-        if member.id in self.states:
+    async def verify_proc_begin(self, member):
+        if member.id in self.verifying:
             await member.send("You are already undergoing the verification process. To restart, type `!restart`.")
+        
+        self.verifying[member.id] = self.VerifyingMember()
+        self.verifying[member.id].full_name = None
+        self.verifying[member.id].zid = None
+        self.verifying[member.id].email = None
+        self.verifying[member.id].email_verified = None
+        self.db.collection("members").document(str(member.id)).set({
+            "_state": None,
+            "full_name": None,
+            "zid": None,
+            "email": None,
+            "email_verified": False,
+            "id_verified": False
+        })
+
+        await self.verify_proc_request_name(member)
+
+    async def verify_proc_restart(self, user):
+        del self.verifying[user.id]
+        self.verify_proc_begin(user)
+
+    async def verify_proc_request_name(self, member):
+        await member.send("What is your full name as it appears on your government-issued ID?\nYou can restart this verification process at any time by typing `!restart`.")
+        self.verifying[member.id].state = self.STATE_AWAIT_NAME
+
+    async def verify_state_await_name(self, member, message):
+        full_name = message.content
+        self.db.collection("members").document(str(member.id)).update({"full_name": full_name})
+        self.verifying[member.id].full_name = full_name
+        await self.verify_proc_request_unsw(member)
+
+    async def verify_proc_request_unsw(self, member):
+        await member.send("Are you a UNSW student? Please type 'y' or 'n'.")
+        self.verifying[member.id].state = self.STATE_AWAIT_UNSW
+
+    async def verify_state_await_unsw(self, member, message):
+        ans = message.content
+        if ans == "y":
+            await self.verify_proc_request_zid(member)
+        elif ans == "n":
+            await self.verify_proc_request_email(member)
+        else:
+            await member.send("Please type 'y' or 'n'.")
+
+    async def verify_proc_request_zid(self, member):
+        await member.send("What is your 7 digit student number, not including the 'z' at the start?")
+        self.verifying[member.id].state = self.STATE_AWAIT_ZID
+    
+    async def verify_state_await_zid(self, member, message):
+        zid = message.content
+        if len(zid) != 7:
+            await member.send("Your response must be 7 characters long. Please try again.")
             return
-
-        self.states[member.id] = self.VerifyState()
-
-        self.states[member.id].full_name = await request_input(self.bot, member, "What is your full name as it appears on your government-issued ID?\nYou can restart this verification process at any time by typing `!restart`.")
-
-        if await request_yes_no(self.bot, member, "Are you a UNSW student?"):
-            await self.verify_unsw(member)
-        else:
-            await self.verify_non_unsw(member)
-
-    async def verify_unsw(self, member):
-        zid = await request_input(self.bot, member, "What is your 7 digit student number, not including the 'z' at the start?")
-        while True:
-            if len(zid) != 7:
-                zid = await request_input(self.bot, member, "Your response must be 7 characters long. Please try again.")
-                continue
-            try:
-                zid = int(zid)
-            except ValueError:
-                zid = await request_input(self.bot, member, "Your response must be an integer. Please try again.")
-            else:
-                break
-        self.states[member.id].zid = zid
+        try:
+            zid = int(zid)
+        except ValueError:
+            await member.send("Your response must be an integer. Please try again.")
         email = f"z{zid}@student.unsw.edu.au"
-        self.states[member.id].email = email
 
-        await self.verify_email(member, email)
-
-    async def verify_non_unsw(self, member):
-        email = await request_input(self.bot, member, "What is your email address?")
-        self.states[member.id].email = email
-
-        await self.verify_email(member, email)
-
-    async def verify_email(self, member, email):
         async with member.typing():
-            self.db.collection("users").document(str(member.id)).set({
-                "full_name": self.states[member.id].full_name,
-                "zid": self.states[member.id].zid,
-                "email": email,
-                "verified": False
+            self.db.collection("members").document(str(member.id)).update({
+                "zid": zid,
+                "email": email
             })
-            expected_code = self.get_code(member)
-            send_email(self.mail, email, "Discord Verification", f"Your code is {expected_code}")
-        
-        actual_code = await request_input(self.bot, member, "Please enter the code sent to your email (check your spam folder if you don't see it).\nYou can request another email by typing `!resend`.")
-        while not hmac.compare_digest(actual_code, expected_code):
-            actual_code = await request_input(self.bot, member, "That was not the correct code. Please try again.")
-        self.states[member.id].email_verified = True
+            self.verifying[member.id].zid = zid
+            self.verifying[member.id].email = email
 
-        if self.states[member.id].zid is None:
-            await self.verify_id(member)
-        else:
-            await self.verify_complete(member)
+            await self.verify_proc_send_email(member)
 
-    async def verify_id(self, member):
-        attachment = (await request_attachments(self.bot, member, "Please send a message with a photo of your government-issued ID attached."))[0]
+    async def verify_proc_request_email(self, member):
+        await member.send("What is your email address?")
+        self.verifying[member.id].state = self.STATE_AWAIT_EMAIL
+
+    async def verify_state_await_email(self, member, message):
+        email = message.content
 
         async with member.typing():
-            attached_file = await attachment.to_file()
+            self.db.collection("members").document(str(member.id)).update({"email": email})
+            self.verifying[member.id].email = email
 
-            admin_channel = self.guild.get_channel(config["admin-channel"])
-            await admin_channel.send(f"Received attachment from {member.mention}. Please verify that name on ID is `{self.states[member.id].full_name}`, then type `!execverify {member.id}`.", file=attached_file)
+            await self.verify_proc_send_email(member)
 
-            await member.send("Your attachment has been forwarded to the admins. Please wait.")
+    async def verify_proc_send_email(self, member):
+        email = self.verifying[member.id].email
+        code = self.get_code(member)
+        send_email(self.mail, email, "Discord Verification", f"Your code is {code}")
+        await member.send("Please enter the code sent to your email (check your spam folder if you don't see it).\nYou can request another email by typing `!resend`.")
+        self.verifying[member.id].state = self.STATE_AWAIT_CODE
 
-    async def exec_verify(self, member):
-        admin_channel = self.guild.get_channel(config["admin-channel"])
-        if member.id not in self.states:
-            await admin_channel.send("That user is not currently undergoing verification.")
+    async def verify_state_await_code(self, member, message):
+        async with member.typing():
+            received_code = message.content
+            expected_code = self.get_code(member)
+            if not hmac.compare_digest(received_code, expected_code):
+                await member.send("That was not the correct code. Please try again.\nYou can request another email by typing `!resend`.")
+                return
 
-        await self.verify_complete(member)
+            self.db.collection("members").document(str(member.id)).update({"email_verified": True})
+            self.verifying[member.id].email_verified = True
+            
+            if self.verifying[member.id].zid is None:
+                await self.verify_proc_request_id(member)
+            else:
+                await self.verify_proc_grant_rank(member)
 
-    async def exec_reject(self, member):
-        admin_channel = self.guild.get_channel(config["admin-channel"])
-        if member.id not in self.states:
-            await admin_channel.send("That user is not currently undergoing verification.")
+    async def verify_proc_resend_email(self, member):
+        if member.id in self.verifying and self.verifying[member.id].state == self.STATE_AWAIT_CODE:
+            await self.verify_proc_send_email(member)
+
+    async def verify_proc_request_id(self, member):
+        await member.send("Please send a message with a photo of your government-issued ID attached.")
+        self.verifying[member.id].state = self.STATE_AWAIT_ID
+
+    async def verify_state_await_id(self, member, message):
+        attachments = message.attachments
+        if len(attachments) == 0:
+            await member.send("No attachments received. Please try again.")
+            return
         
+        async with member.typing():
+            await self.verify_proc_send_id_admins(member, attachments)
+
+    async def verify_proc_send_id_admins(self, member, attachments):
+        first_file = await attachments[0].to_file()
+        admin_channel = self.guild.get_channel(config["admin-channel"])
+        await admin_channel.send(f"Received attachment from {member.mention}. Please verify that name on ID is `{self.verifying[member.id].full_name}`, then type `!execapprove {member.id}` or `!execreject {member.id}`.", file=first_file)
+
+        await member.send("Your attachment has been forwarded to the admins. Please wait.")
+
+        self.verifying[member.id].state = self.STATE_AWAIT_APPROVAL
+
+    async def verify_state_await_approval(self, member, message):
         pass
 
-    async def verify_complete(self, member):
-        async with member.typing():
-            self.db.collection("users").document(str(member.id)).set({
-                "full_name": self.states[member.id].full_name,
-                "zid": self.states[member.id].zid,
-                "email": self.states[member.id].email,
-                "verified": True
-            })
+    async def verify_proc_exec_approve(self, member):
+        admin_channel = self.guild.get_channel(config["admin-channel"])
+        if member.id not in self.verifying:
+            await admin_channel.send("That user is not currently undergoing verification.")
 
-            await member.add_roles(self.guild.get_role(config["verified-role"]))
+        if self.verifying[member.id].state != self.STATE_AWAIT_APPROVAL:
+            await admin_channel.send("That user is still undergoing verification.")
 
-            del self.states[member.id]
+        self.verifying[member.id].task = await self.verify_proc_grant_rank(member)
 
-            await member.send("You are now verified. Welcome to the server!")
+    async def verify_proc_exec_reject(self, member):
+        admin_channel = self.guild.get_channel(config["admin-channel"])
+        if member.id not in self.verifying:
+            await admin_channel.send("That user is not currently undergoing verification.")
+
+        # TODO: Implement this.
+
+    async def verify_proc_grant_rank(self, member):
+        self.db.collection("members").document(str(member.id)).update({"id_verified": True})
+        await member.add_roles(self.guild.get_role(config["verified-role"]))
+        del self.verifying[member.id]
+        await member.send("You are now verified. Welcome to the server!")
 
         admin_channel = self.guild.get_channel(config["admin-channel"])
         await admin_channel.send(f"{member.mention} is now verified.")
-
-    async def verify_restart(self, member):
-        if member.id in self.states:
-            await self.verify_begin(member)
