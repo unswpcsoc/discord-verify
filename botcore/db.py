@@ -23,8 +23,7 @@ class Database(commands.Cog):
     COL_MEMBERS = "members"
     COL_SECRETS = "secrets"
 
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self):
         self.db = None
         self._connect()
 
