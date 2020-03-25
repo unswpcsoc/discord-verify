@@ -27,23 +27,44 @@ import boto3
 from botocore.exceptions import ClientError
 from discord.ext import commands
 
+from iam.log import new_logger
 from iam.config import (
     EMAIL, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 )
 
+LOG = None
+"""Logger for this module."""
+
+COG_NAME = "Mail"
+"""Name of this module's cog."""
+
 def setup(bot):
-    """Add Mail cog to bot.
+    """Add Mail cog to bot and set up logging.
 
     Args:
         bot: Bot object to add cog to.
     """
-    bot.add_cog(Mail())
+    global LOG
+    LOG = new_logger(__name__)
+    LOG.debug(f"Setting up {__name__} extension...")
+    cog = Mail()
+    LOG.debug(f"Initialised {COG_NAME} cog")
+    bot.add_cog(cog)
+    LOG.debug(f"Added {COG_NAME} cog to bot")
+
+def teardown(bot):
+    LOG.debug(f"Tearing down {__name__} extension")
+    """Remove Mail cog from bot and remove logging."""
+    bot.remove_cog(COG_NAME)
+    LOG.info(f"Removed {COG_NAME} cog from bot")
+    for handler in LOG.handlers:
+        LOG.removeHandler(handler)
 
 class MailError(Exception):
     """Email failed to send."""
     pass
 
-class Mail(commands.Cog):
+class Mail(commands.Cog, name=COG_NAME):
     """Handle email functions"""
     CHARSET = "UTF-8"
     """String representing encoding used for emails."""
@@ -65,6 +86,7 @@ class Mail(commands.Cog):
         Raises:
             MailError: If email fails to send.
         """
+        LOG.debug(f"Sending SES email to {recipient}...")
         try:
             response = self.client.send_email(
                 Destination={"ToAddresses": [recipient]},
@@ -82,8 +104,9 @@ class Mail(commands.Cog):
                 },
                 Source=EMAIL
             )
-            print(f"Email {response['MessageId']} sent to {recipient}")
+            LOG.info(f"SES email {response['MessageId']} sent to {recipient}")
         except ClientError:
+            LOG.error(f"SES email for {recipient} failed to send")
             raise MailError("Email could not be sent!")
 
     def _connect(self):
@@ -91,10 +114,11 @@ class Mail(commands.Cog):
         
         Required for all other methods to function.
         """
+        LOG.debug("Logging in to Amazon SES...")
         self.client = boto3.client(
             'ses',
             region_name=AWS_REGION,
             aws_access_key_id=AWS_ACCESS_KEY_ID,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY
         )
-        print("Connected to Amazon SES")
+        LOG.info("Logged in to Amazon SES")

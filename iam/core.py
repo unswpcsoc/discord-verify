@@ -23,21 +23,46 @@ SOFTWARE.
 
 """Handle core functions of the bot."""
 
-from discord.ext import commands
 from inspect import getdoc
+from discord.ext import commands
 
+from iam.log import new_logger
 from iam.config import PREFIX
 import iam.perms
 
+LOG = None
+"""Logger for this module."""
+
+COG_NAME = "Core"
+"""Name of this module's Cog."""
+
 def setup(bot):
-    """Add Core cog to bot.
+    """Add Core cog to bot and set up logging.
 
     Args:
         bot: Bot object to add cog to.
     """
-    bot.add_cog(Core(bot))
+    global LOG
+    LOG = new_logger(__name__)
+    LOG.debug(f"Setting up {__name__} extension...")
+    cog = Core(bot)
+    LOG.debug(f"Initialised {COG_NAME} cog")
+    bot.add_cog(cog)
+    LOG.debug(f"Added {cog.qualified_name} cog to bot")
 
-class Core(commands.Cog):
+def teardown(bot):
+    """Remove Core cog from bot and remove logging.
+
+    Args:
+        bot: Bot object to remove cog from.
+    """
+    LOG.debug(f"Tearing down {__name__} extension...")
+    bot.remove_cog(COG_NAME)
+    LOG.debug(f"Removed {COG_NAME} cog from bot")
+    for handler in LOG.handlers:
+        LOG.removeHandler(handler)
+
+class Core(commands.Cog, name=COG_NAME):
     """Handle core functions of the bot.
 
     Attributes:
@@ -49,13 +74,14 @@ class Core(commands.Cog):
         Args:
             bot: Bot object that registered this cog.
         """
+        LOG.debug(f"Initialising {self.qualified_name} cog...")
         self.bot = bot
         self.bot.remove_command("help")
 
     @commands.Cog.listener()
     async def on_ready(self):
-        """Print message to console on bot startup."""
-        print(f"Bot running with command prefix '{self.bot.command_prefix}'")
+        """Log message on bot startup."""
+        LOG.info(f"Bot running with command prefix '{PREFIX}'")
 
     @commands.command(
         name="help",
@@ -129,8 +155,9 @@ class Core(commands.Cog):
             ctx: Context object associated with command invocation.
         """
         await ctx.send("I am shutting down...")
+        LOG.debug("Logging out of Discord...")
         await self.bot.logout()
-        print("Successfully logged out. Exiting...")
+        LOG.info("Logged out of Discord. Exiting...")
 
 def make_help_text(cmd):
     """Generate help text for command.

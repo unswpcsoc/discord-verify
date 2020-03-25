@@ -29,10 +29,17 @@ import hmac
 from discord.ext import commands
 from discord import NotFound
 
+from iam.log import new_logger
 import iam.perms
 from iam.db import MemberKey, SecretID, MemberNotFound
 from iam.mail import MailError
 from iam.config import PREFIX, SERVER_ID, VER_ROLE, ADMIN_CHANNEL
+
+LOG = None
+"""Logger for this module."""
+
+COG_NAME = "Verify"
+"""Name of this module's cog."""
 
 def setup(bot):
     """Add Verify cog to bot.
@@ -40,7 +47,25 @@ def setup(bot):
     Args:
         bot: Bot object to add cog to.
     """
-    bot.add_cog(Verify(bot))
+    global LOG
+    LOG = new_logger(__name__)
+    LOG.debug(f"Setting up {__name__} extension...")
+    cog = Verify(bot)
+    LOG.debug(f"Initialised {COG_NAME} cog")
+    bot.add_cog(cog)
+    LOG.debug(f"Added {COG_NAME} cog to bot")
+
+def teardown(bot):
+    """Remove Verify cog from this bot and remove logging.
+
+    Args:
+        bot: Bot object to remove cog from.
+    """
+    LOG.debug(f"Tearing down {__name__} extension")
+    bot.remove_cog(COG_NAME)
+    LOG.debug(f"Removed {COG_NAME} cog from bot")
+    for handler in LOG.handlers:
+        LOG.removeHandler(handler)
 
 def _next_state(state):
     """Decorate method to trigger state change on completion.
@@ -83,7 +108,7 @@ def _awaiting_approval(func):
         await func(self, member, *args)
     return wrapper
 
-class Verify(commands.Cog):
+class Verify(commands.Cog, name=COG_NAME):
     """Handle automatic verification of server members.
 
     Verification process for each member implemented as a finite state machine.
@@ -115,6 +140,7 @@ class Verify(commands.Cog):
         Args:
             bot: Bot object that registered this cog.
         """
+        LOG.debug(f"Initialising {self.qualified_name} cog...")
         self.bot = bot
         self.__secret_ = None
         self.__state_handler = [

@@ -35,12 +35,12 @@ FILE_LOG_FMT = "[%(asctime)s] [%(module)s/%(levelname)s]: %(message)s"
 FILE_TIME_FMT = "%Y-%m-%d %H:%M:%S"
 
 FILENAME_TIME_FMT = "%Y-%m-%d_%H-%M-%S"
-FILENAME = f"{strftime(FILENAME_TIME_FMT, localtime(time()))}.log"
+FILENAME = f"logs/{strftime(FILENAME_TIME_FMT, localtime(time()))}.log"
 
-def new_logger():
+def new_logger(name):
     import logging
 
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
 
     c_handler = logging.StreamHandler()

@@ -25,8 +25,10 @@ SOFTWARE.
 
 """Launches the Discord bot."""
 
+import sys
 from discord.ext import commands
 
+from iam.log import new_logger
 from iam.config import BOT_TOKEN, PREFIX
 import iam.perms
 from iam.core import Core
@@ -35,16 +37,34 @@ from iam.mail import Mail
 from iam.verify import Verify
 from iam.sign import Sign
 
+LOG = None
+
 def main():
+    global LOG
+    LOG = new_logger(__name__)
+    sys.excepthook = exception_handler
+
     BOT = commands.Bot(command_prefix=PREFIX)
 
     BOT.load_extension("iam.core")
+    LOG.info("Loaded iam.core extension")
+
     BOT.load_extension("iam.db")
+    LOG.info("Loaded iam.db extension")
+
     BOT.load_extension("iam.mail")
+    LOG.info("Loaded iam.mail extension")
+
     BOT.load_extension("iam.verify")
+    LOG.info("Loaded iam.verify extension")
+
     BOT.load_extension("iam.sign")
+    LOG.info("Loaded iam.sign extension")
 
     BOT.run(BOT_TOKEN)
+
+def exception_handler(type, value, traceback):
+    LOG.exception(f"Uncaught exception: {value}")
 
 if __name__ == "__main__":
     main()

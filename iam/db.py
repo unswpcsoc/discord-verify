@@ -29,13 +29,38 @@ import google.cloud.exceptions
 from secrets import token_bytes
 from discord.ext import commands
 
+from iam.log import new_logger
+
+LOG = None
+"""Logger for this module."""
+
+COG_NAME = "Database"
+
 def setup(bot):
-    """Add Database cog to bot.
+    """Add Database cog to bot and set up logging.
 
     Args:
         bot: Bot object to add cog to.
     """
-    bot.add_cog(Database())
+    global LOG
+    LOG = new_logger(__name__)
+    LOG.debug(f"Setting up {__name__} extension...")
+    cog = Database()
+    LOG.debug(f"Initialised {COG_NAME} cog")
+    bot.add_cog(cog)
+    LOG.debug(f"Added {COG_NAME} cog to bot")
+
+def teardown(bot):
+    """Remove Database cog from this bot and remove logging.
+
+    Args:
+        bot: Bot object to remove cog from.
+    """
+    LOG.debug(f"Tearing down {__name__} extension...")
+    bot.remove_cog(COG_NAME)
+    LOG.debug(f"Removed {COG_NAME} cog from bot")
+    for handler in LOG.handlers:
+        LOG.removeHandler(handler)
 
 class MemberNotFound(Exception):
     """Member not found in database."""
@@ -89,6 +114,8 @@ class Database(commands.Cog):
         """
         data = self._get_member_doc(id).get().to_dict()
         if data is None:
+            LOG.warning(f"Failed to retrieve member {id} from database - "
+                "they do not exist")
             raise MemberNotFound
         return data
 
@@ -140,6 +167,8 @@ class Database(commands.Cog):
         try:
             self._get_member_doc(id).update(info)
         except google.cloud.exceptions.NotFound:
+            LOG.warning(f"Failed to update member {id} entry in database - "
+                "they do not exist.")
             raise MemberNotFound
 
     def delete_member_data(self, id, must_exist=True):
@@ -158,6 +187,8 @@ class Database(commands.Cog):
         """
         doc = self._get_member_doc(id)
         if must_exist and doc.get().to_dict() is None:
+            LOG.warning(f"Failed to delete member {id} in database - they do "
+                "not exist.")
             raise MemberNotFound
         doc.delete()
 
@@ -177,12 +208,12 @@ class Database(commands.Cog):
         
         if data is not None:
             secret = data["secret"]
-            print(f"Retrieved '{id}' secret from Firebase")
+            LOG.debug(f"Retrieved '{id}' secret from Firebase")
         else:
-            print(f"Generating new '{id}' secret...")
+            LOG.info(f"Generating new '{id}' secret...")
             secret = token_bytes(64)
             doc.set({"secret": secret})
-            print(f"Saved {id} secret in Firebase")
+            LOG.info(f"Saved new {id} secret in Firebase")
         
         return secret
 
@@ -191,10 +222,11 @@ class Database(commands.Cog):
         
         Required for all other methods to function.
         """
+        LOG.debug("Logging in to Firebase...")
         cred = credentials.Certificate(self.CERTIFICATE_FILE)
         firebase_admin.initialize_app(cred)
         self.db = firestore.client()
-        print("Logged in to Firebase")
+        LOG.info("Logged in to Firebase")
     
     def _get_member_doc(self, id):
         """Retrieve member doc from database.
