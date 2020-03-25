@@ -33,7 +33,7 @@ from botcore.db import MemberKey, SecretID, MemberNotFound
 from botcore.mail import MailError
 from botcore.config import config
 
-def __next_state(state):
+def _next_state(state):
     """Decorate function to trigger state change on completion.
 
     Used with the Verify class to implement a finite state machine.
@@ -116,7 +116,7 @@ class Verify(commands.Cog):
         self.__secret_ = self.db.get_secret(SecretID.VERIFY)
         return self.__secret_
 
-    @commands.command(name="verify")
+    @commands.group(name="verify")
     @botcore.perms.in_allowed_channel(error=True)
     @botcore.perms.is_unverified_user(error=True)
     async def cmd_verify(self, ctx):
@@ -128,7 +128,41 @@ class Verify(commands.Cog):
         Args:
             ctx: Context object associated with command invocation.
         """
-        await self.__proc_begin(ctx.author)
+        if ctx.invoked_subcommand is None:
+            await self.__proc_begin(ctx.author)
+
+    @cmd_verify.command(name="approve")
+    @botcore.perms.in_admin_channel(error=True)
+    @botcore.perms.is_admin_user(error=True)
+    async def cmd_verify_approve(self, ctx, member_id: int):
+        """Handle execapprove command.
+
+        Grant member verified rank, if they are currently awaiting exec
+        approval.
+
+        Args:
+            ctx: Context object associated with command invocation.
+            member_id: Discord ID of member to approve.
+        """
+        await self.__proc_exec_approve(self.guild.get_member(member_id))
+
+    @cmd_verify.command(name="reject")
+    @botcore.perms.in_admin_channel(error=True)
+    @botcore.perms.is_admin_user(error=True)
+    async def cmd_verify_reject(self, ctx, member_id: int, *, reason: str):
+        """Handle execreject command.
+
+        Reject member for verification and delete them from database, if they
+        are currently awaiting exec approval.
+
+        Args:
+            ctx: Context object associated with command invocation.
+            member_id: Discord ID of member to approve.
+            reason: Rejection reason.
+        """
+        member = self.guild.get_member(member_id)
+        reason = " ".join(reason)
+        await self.__proc_exec_reject(member, reason)
 
     @commands.command(name="restart")
     @botcore.perms.in_dm_channel()
@@ -159,39 +193,6 @@ class Verify(commands.Cog):
             ctx: Context object associated with command invocation.
         """
         await self.__proc_resend_email(self.guild.get_member(ctx.author.id))
-
-    @commands.command(name="execapprove")
-    @botcore.perms.in_admin_channel(error=True)
-    @botcore.perms.is_admin_user(error=True)
-    async def cmd_exec_verify(self, ctx, member_id):
-        """Handle execapprove command.
-
-        Grant member verified rank, if they are currently awaiting exec
-        approval.
-
-        Args:
-            ctx: Context object associated with command invocation.
-            member_id: String representing Discord ID of member to approve.
-        """
-        await self.__proc_exec_approve(self.guild.get_member(int(member_id)))
-
-    @commands.command(name="execreject")
-    @botcore.perms.in_admin_channel(error=True)
-    @botcore.perms.is_admin_user(error=True)
-    async def cmd_exec_reject(self, ctx, member_id, *, reason: str):
-        """Handle execreject command.
-
-        Reject member for verification and delete them from database, if they
-        are currently awaiting exec approval.
-
-        Args:
-            ctx: Context object associated with command invocation.
-            member_id: String representing Discord ID of member to approve.
-            reason: String representing rejection reason.
-        """
-        member = self.guild.get_member(int(member_id))
-        reason = " ".join(reason)
-        await self.__proc_exec_reject(member, reason)
 
     @commands.Cog.listener()
     @botcore.perms.is_human()
@@ -285,7 +286,7 @@ class Verify(commands.Cog):
         del self.verifying[user.id]
         await self.__proc_begin(user)
 
-    @__next_state(State.AWAIT_NAME)
+    @_next_state(State.AWAIT_NAME)
     async def __proc_request_name(self, member):
         """DM name request to member and await response.
 
@@ -311,7 +312,7 @@ class Verify(commands.Cog):
         self.verifying[member.id][MemberKey.NAME] = full_name
         await self.__proc_request_unsw(member)
 
-    @__next_state(State.AWAIT_UNSW)
+    @_next_state(State.AWAIT_UNSW)
     async def __proc_request_unsw(self, member):
         """DM is UNSW? request to member and await response.
 
@@ -339,7 +340,7 @@ class Verify(commands.Cog):
         else:
             await member.send("Please type `y` or `n`.")
 
-    @__next_state(State.AWAIT_ZID)
+    @_next_state(State.AWAIT_ZID)
     async def __proc_request_zid(self, member):
         """DM zID request to member and await response.
 
@@ -378,7 +379,7 @@ class Verify(commands.Cog):
 
             await self.__proc_send_email(member)
 
-    @__next_state(State.AWAIT_EMAIL)
+    @_next_state(State.AWAIT_EMAIL)
     async def __proc_request_email(self, member):
         """DM email address request to member and await response.
 
@@ -428,7 +429,7 @@ class Verify(commands.Cog):
         
         await self.__proc_request_code(member)
 
-    @__next_state(State.AWAIT_CODE)
+    @_next_state(State.AWAIT_CODE)
     async def __proc_request_code(self, member):
         """DM verification code request to member and await response.
 
@@ -479,7 +480,7 @@ class Verify(commands.Cog):
             == self.State.AWAIT_CODE:
             await self.__proc_send_email(member)
 
-    @__next_state(State.AWAIT_ID)
+    @_next_state(State.AWAIT_ID)
     async def __proc_request_id(self, member):
         """DM ID request to member and await response.
 
@@ -506,7 +507,7 @@ class Verify(commands.Cog):
         async with member.typing():
             await self.__proc_send_id_admins(member, attachments)
 
-    @__next_state(State.AWAIT_APPROVAL)
+    @_next_state(State.AWAIT_APPROVAL)
     async def __proc_send_id_admins(self, member, attachments):
         """Forward member ID attachments to admin channel.
 
@@ -521,8 +522,8 @@ class Verify(commands.Cog):
         full_name = self.verifying[member.id][MemberKey.NAME]
         await admin_channel.send(f"Received attachment from {member.mention}. "
             f"Please verify that name on ID is `{full_name}`, "
-            f"then type `!execapprove {member.id}` "
-            f"or `!execreject {member.id} reason`.", file=first_file)
+            f"then type `!verify approve {member.id}` "
+            f"or `!verify reject {member.id} \"reason\"`.", file=first_file)
 
         await member.send("Your attachment has been forwarded to the execs. "
             "Please wait.")
