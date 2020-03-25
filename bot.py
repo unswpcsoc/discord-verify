@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
-"""
-MIT License
+"""MIT License
 
 Copyright (c) 2020 Computer Enthusiasts Society
 
