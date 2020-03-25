@@ -1,5 +1,5 @@
 bot-token: "YOUR-BOT-TOKEN-HERE"
-command-prefix: "!"
+command-prefix: "?"
 server-id: SERVER-ID-HERE
 verified-role: VERIFIED-ROLE-ID-HERE
 allowed-channels:
