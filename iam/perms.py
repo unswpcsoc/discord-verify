@@ -74,8 +74,8 @@ def is_verified_user(error=False):
         error: Boolean for whether to send error message if check fails.
     """
     def predicate(cog, ctx):
-        member = _get_member(cog, ctx.author.id)
-        if member is None or VER_ROLE not in _get_role_ids(member):
+        member = get_member(cog, ctx.author.id)
+        if member is None or VER_ROLE not in get_role_ids(member):
             return False, "You must be verified to do that."
         return True, None
     
@@ -93,8 +93,8 @@ def was_verified_user(error=False):
         error: Boolean for whether to send error message if check fails.
     """
     def currently_verified(cog, ctx):
-        member = _get_member(cog, ctx.author.id)
-        if member is None or VER_ROLE not in _get_role_ids(member):
+        member = get_member(cog, ctx.author.id)
+        if member is None or VER_ROLE not in get_role_ids(member):
             return False
         return True
 
@@ -119,8 +119,8 @@ def is_unverified_user(error=False):
         error: Boolean for whether to send error message if check fails.
     """
     def predicate(cog, ctx):
-        member = _get_member(cog, ctx.author.id)
-        if member is not None and VER_ROLE in _get_role_ids(member):
+        member = get_member(cog, ctx.author.id)
+        if member is not None and VER_ROLE in get_role_ids(member):
             return False, "You are already verified."
         return True, None
     
@@ -137,8 +137,8 @@ def never_verified_user(error=False):
         error: Boolean for whether to send error message if check fails.
     """
     def currently_verified(cog, ctx):
-        member = _get_member(cog, ctx.author.id)
-        if member is None or VER_ROLE not in _get_role_ids(member):
+        member = get_member(cog, ctx.author.id)
+        if member is None or VER_ROLE not in get_role_ids(member):
             return False
         return True
 
@@ -162,8 +162,8 @@ def is_admin_user(error=False):
         error: Boolean for whether to send error message if check fails.
     """
     def predicate(cog, ctx):
-        member = _get_member(cog, ctx.author.id)
-        if set(ADMIN_ROLES).isdisjoint(_get_role_ids(member)):
+        member = get_member(cog, ctx.author.id)
+        if set(ADMIN_ROLES).isdisjoint(get_role_ids(member)):
             return False, "You are not authorised to do that."
         return True, None
     return check(predicate, error)
@@ -179,7 +179,7 @@ def is_guild_member(error=False):
         error: Boolean for whether to send error message if check fails.
     """
     def predicate(cog, ctx):
-        if _get_member(cog, ctx.author.id) is None:
+        if get_member(cog, ctx.author.id) is None:
             return False, "You must be a member of the server to do that."
         return True, None
     return check(predicate, error)
@@ -248,7 +248,7 @@ def is_not_command():
         return True, None
     return check(predicate, False)
 
-def _get_member(cog, id):
+def get_member(cog, id):
     """Get member with given Discord ID.
     
     Args:
@@ -262,7 +262,7 @@ def _get_member(cog, id):
     """
     return cog.bot.get_guild(SERVER_ID).get_member(id)
 
-def _get_role_ids(member):
+def get_role_ids(member):
     """Get list of IDs of all roles member has.
 
     Args:
