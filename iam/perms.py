@@ -26,7 +26,9 @@ SOFTWARE.
 from functools import wraps
 from inspect import iscoroutinefunction
 
-from iam.config import config
+from iam.config import (
+    PREFIX, SERVER_ID, VER_ROLE, ALLOW_CHANNELS, ADMIN_CHANNEL, ADMIN_ROLES
+)
 
 def check(predicate, error):
     """ Decorate method to only execute if it passes a check.
@@ -73,8 +75,7 @@ def is_verified_user(error=False):
     """
     def predicate(cog, ctx):
         member = _get_member(cog, ctx.author.id)
-        if member is None or config["verified-role"] \
-            not in _get_role_ids(member):
+        if member is None or VER_ROLE not in _get_role_ids(member):
             return False, "You must be verified to do that."
         return True, None
     
@@ -93,8 +94,7 @@ def was_verified_user(error=False):
     """
     def currently_verified(cog, ctx):
         member = _get_member(cog, ctx.author.id)
-        if member is None or config["verified-role"] \
-            not in _get_role_ids(member):
+        if member is None or VER_ROLE not in _get_role_ids(member):
             return False
         return True
 
@@ -120,8 +120,7 @@ def is_unverified_user(error=False):
     """
     def predicate(cog, ctx):
         member = _get_member(cog, ctx.author.id)
-        if member is not None and config["verified-role"] \
-            in _get_role_ids(member):
+        if member is not None and VER_ROLE in _get_role_ids(member):
             return False, "You are already verified."
         return True, None
     
@@ -139,8 +138,7 @@ def never_verified_user(error=False):
     """
     def currently_verified(cog, ctx):
         member = _get_member(cog, ctx.author.id)
-        if member is None or config["verified-role"] \
-            not in _get_role_ids(member):
+        if member is None or VER_ROLE not in _get_role_ids(member):
             return False
         return True
 
@@ -165,7 +163,7 @@ def is_admin_user(error=False):
     """
     def predicate(cog, ctx):
         member = _get_member(cog, ctx.author.id)
-        if set(config["admin-roles"]).isdisjoint(_get_role_ids(member)):
+        if set(ADMIN_ROLES).isdisjoint(_get_role_ids(member)):
             return False, "You are not authorised to do that."
         return True, None
     return check(predicate, error)
@@ -195,7 +193,7 @@ def in_allowed_channel(error=False):
         error: Boolean for whether to send error message if check fails.
     """
     def predicate(cog, ctx):
-        if ctx.channel.id not in config["allowed-channels"]:
+        if ctx.channel.id not in ALLOW_CHANNELS:
             return False, "You cannot do that in this channel."
         return True, None
     return check(predicate, error)
@@ -209,7 +207,7 @@ def in_admin_channel(error=False):
         error: Boolean for whether to send error message if check fails.
     """
     def predicate(cog, ctx):
-        if ctx.channel.id != config["admin-channel"]:
+        if ctx.channel.id != ADMIN_CHANNEL:
             return False, "You must be in the admin channel to do that."
         return True, None
     return check(predicate, error)
@@ -245,7 +243,7 @@ def is_not_command():
     Commands defined as starting with command prefix defined in config.
     """
     def predicate(cog, ctx):
-        if ctx.content.startswith(config["command-prefix"]):
+        if ctx.content.startswith(PREFIX):
             return False, None
         return True, None
     return check(predicate, False)
@@ -262,7 +260,7 @@ def _get_member(cog, id):
         The Member object associated with id and the guild defined in the
         config.
     """
-    return cog.bot.get_guild(config["server-id"]).get_member(id)
+    return cog.bot.get_guild(SERVER_ID).get_member(id)
 
 def _get_role_ids(member):
     """Get list of IDs of all roles member has.

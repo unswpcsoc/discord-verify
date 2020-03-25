@@ -32,7 +32,7 @@ from discord import NotFound
 import iam.perms
 from iam.db import MemberKey, SecretID, MemberNotFound
 from iam.mail import MailError
-from iam.config import config
+from iam.config import PREFIX, SERVER_ID, VER_ROLE, ADMIN_CHANNEL
 
 def setup(bot):
     """Add Verify cog to bot.
@@ -130,11 +130,11 @@ class Verify(commands.Cog):
 
     @property
     def guild(self):
-        return self.bot.get_guild(config["server-id"])
+        return self.bot.get_guild(SERVER_ID)
 
     @property
     def admin_channel(self):
-        return self.guild.get_channel(config["admin-channel"])
+        return self.guild.get_channel(ADMIN_CHANNEL)
 
     @property
     def db(self):
@@ -152,7 +152,11 @@ class Verify(commands.Cog):
         self.__secret_ = self.db.get_secret(SecretID.VERIFY)
         return self.__secret_
 
-    @commands.group(name="verify")
+    @commands.group(
+        name="verify",
+        help="Begin verification process for user.",
+        usage=f"**{PREFIX}verify**"
+    )
     async def grp_verify(self, ctx):
         """Register verify command group.
         
@@ -321,9 +325,8 @@ class Verify(commands.Cog):
             member: Member object to begin verifying.
         """
         if member.id in self.verifying:
-            prefix = config["command-prefix"]
             await member.send("You are already undergoing the verification "
-                f"process. To restart, type `{prefix}restart`.")
+                f"process. To restart, type `{PREFIX}restart`.")
             return
         
         try:
@@ -367,10 +370,9 @@ class Verify(commands.Cog):
         Args:
             member: Member object to make request to.
         """
-        prefix = config["command-prefix"]
         await member.send("What is your full name as it appears on your "
             "government-issued ID?\nYou can restart this verification process "
-            f"at any time by typing `{prefix}restart`.")
+            f"at any time by typing `{PREFIX}restart`.")
 
     async def __state_await_name(self, member, message):
         """Handle message received from member while awaiting name.
@@ -510,10 +512,9 @@ class Verify(commands.Cog):
         Args:
             member: Member object to make request to.
         """
-        prefix = config["command-prefix"]
         await member.send("Please enter the code sent to your email "
             "(check your spam folder if you don't see it).\n"
-            f"You can request another email by typing `{prefix}resend`.")
+            f"You can request another email by typing `{PREFIX}resend`.")
 
     async def __state_await_code(self, member, message):
         """Handle message received from member while awaiting code.
@@ -530,10 +531,9 @@ class Verify(commands.Cog):
             received_code = message.content
             expected_code = self.get_code(member)
             if not hmac.compare_digest(received_code, expected_code):
-                prefix = config["command-prefix"]
                 await member.send("That was not the correct code. Please try "
                     "again.\nYou can request another email by typing "
-                    f"`{prefix}resend`.")
+                    f"`{PREFIX}resend`.")
                 return
 
             patch = {MemberKey.EMAIL_VER: True}
@@ -593,13 +593,12 @@ class Verify(commands.Cog):
             member: Member object that sent attachments.
             attachments: List of Attachment objects received from member.
         """
-        prefix = config["command-prefix"]
         files = [await a.to_file() for a in attachments]
         full_name = self.verifying[member.id][MemberKey.NAME]
         message = await self.admin_channel.send("Received attachment(s) from "
             f"{member.mention}. Please verify that name on ID is "
-            f"`{full_name}`, then type `{prefix}verify approve {member.id}` "
-            f"or `{prefix}verify reject {member.id} \"reason\"`.", files=files)
+            f"`{full_name}`, then type `{PREFIX}verify approve {member.id}` "
+            f"or `{PREFIX}verify reject {member.id} \"reason\"`.", files=files)
 
         await member.send("Your attachment(s) have been forwarded to the "
             "execs. Please wait.")
@@ -642,10 +641,9 @@ class Verify(commands.Cog):
         self.db.delete_member_data(member.id, must_exist=False)
         del self.verifying[member.id]
 
-        prefix = config["command-prefix"]
         await member.send("Your verification request has been denied "
             f"for the following reason(s): `{reason}`.\n"
-            f"You can start a new request by typing `{prefix}verify` in the "
+            f"You can start a new request by typing `{PREFIX}verify` in the "
             "verification channel.")
 
         await self.admin_channel.send("Rejected verification request from "
@@ -695,11 +693,10 @@ class Verify(commands.Cog):
 
         files = [await a.to_file() for a in attachments]
         full_name = self.verifying[member.id][MemberKey.NAME]
-        prefix = config["command-prefix"]
         await self.admin_channel.send("Previously received attachment(s) from "
             f"{member.mention}. Please verify that name on ID is "
-            f"`{full_name}`, then type `{prefix}verify approve {member.id}` "
-            f"or `{prefix}verify reject {member.id} \"reason\"`.", files=files)
+            f"`{full_name}`, then type `{PREFIX}verify approve {member.id}` "
+            f"or `{PREFIX}verify reject {member.id} \"reason\"`.", files=files)
 
     async def __proc_grant_rank(self, member):
         """Grant verified rank to member and notify them and execs.
@@ -710,7 +707,7 @@ class Verify(commands.Cog):
             member: Member object to grant verified rank to.
         """
         self.db.update_member_data(member.id, {MemberKey.ID_VER: True})
-        await member.add_roles(self.guild.get_role(config["verified-role"]))
+        await member.add_roles(self.guild.get_role(VER_ROLE))
         if member.id in self.verifying:
             del self.verifying[member.id]
         await member.send("You are now verified. Welcome to the server!")
