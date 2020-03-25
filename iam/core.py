@@ -25,7 +25,15 @@ SOFTWARE.
 
 from discord.ext import commands
 
-import botcore.perms
+import iam.perms
+
+def setup(bot):
+    """Add Core cog to bot.
+
+    Args:
+        bot: Bot object to add cog to.
+    """
+    bot.add_cog(Core(bot))
 
 class Core(commands.Cog):
     """Handle core functions of the bot.
@@ -56,8 +64,8 @@ class Core(commands.Cog):
         pass
 
     @grp_iam.command(name="exit")
-    @botcore.perms.in_admin_channel(error=True)
-    @botcore.perms.is_admin_user(error=True)
+    @iam.perms.in_admin_channel(error=True)
+    @iam.perms.is_admin_user(error=True)
     async def cmd_iam_exit(self, ctx):
         """Handle iam exit command.
         

@@ -29,10 +29,18 @@ import hmac
 from discord.ext import commands
 from discord import NotFound
 
-import botcore.perms
-from botcore.db import MemberKey, SecretID, MemberNotFound
-from botcore.mail import MailError
-from botcore.config import config
+import iam.perms
+from iam.db import MemberKey, SecretID, MemberNotFound
+from iam.mail import MailError
+from iam.config import config
+
+def setup(bot):
+    """Add Verify cog to bot.
+
+    Args:
+        bot: Bot object to add cog to.
+    """
+    bot.add_cog(Verify(bot))
 
 def _next_state(state):
     """Decorate method to trigger state change on completion.
@@ -85,7 +93,7 @@ class Verify(commands.Cog):
         verifying: Dict of all members undergoing verification. Keys are member
                    Discord IDs and values are dicts containing state, name,
                    zID, email, email verified status and ID verified status.
-                   Refer to botcore.db.MemberKey.
+                   Refer to iam.db.MemberKey.
         bot: Bot object that registered this cog.
         guild: Guild object associated with bot, defined in config.
         db: Database cog associated with bot.
@@ -154,8 +162,8 @@ class Verify(commands.Cog):
         if ctx.invoked_subcommand is None:
             await self.cmd_verify(ctx)
 
-    @botcore.perms.in_allowed_channel(error=True)
-    @botcore.perms.is_unverified_user(error=True)
+    @iam.perms.in_allowed_channel(error=True)
+    @iam.perms.is_unverified_user(error=True)
     async def cmd_verify(self, ctx):
         """Handle verify command.
 
@@ -168,8 +176,8 @@ class Verify(commands.Cog):
         await self.__proc_begin(ctx.author)
 
     @grp_verify.command(name="approve")
-    @botcore.perms.in_admin_channel(error=True)
-    @botcore.perms.is_admin_user(error=True)
+    @iam.perms.in_admin_channel(error=True)
+    @iam.perms.is_admin_user(error=True)
     async def cmd_verify_approve(self, ctx, member_id: int):
         """Handle verify approve command.
 
@@ -183,8 +191,8 @@ class Verify(commands.Cog):
         await self.__proc_exec_approve(self.guild.get_member(member_id))
 
     @grp_verify.command(name="reject")
-    @botcore.perms.in_admin_channel(error=True)
-    @botcore.perms.is_admin_user(error=True)
+    @iam.perms.in_admin_channel(error=True)
+    @iam.perms.is_admin_user(error=True)
     async def cmd_verify_reject(self, ctx, member_id: int, *, reason: str):
         """Handle verify reject command.
 
@@ -200,8 +208,8 @@ class Verify(commands.Cog):
         await self.__proc_exec_reject(member, reason)
 
     @grp_verify.command(name="pending")
-    @botcore.perms.in_admin_channel(error=True)
-    @botcore.perms.is_admin_user(error=True)
+    @iam.perms.in_admin_channel(error=True)
+    @iam.perms.is_admin_user(error=True)
     async def cmd_verify_pending(self, ctx):
         """Handle verify pending command.
 
@@ -215,8 +223,8 @@ class Verify(commands.Cog):
         await self.__proc_display_pending()
 
     @grp_verify.command(name="check")
-    @botcore.perms.in_admin_channel(error=True)
-    @botcore.perms.is_admin_user(error=True)
+    @iam.perms.in_admin_channel(error=True)
+    @iam.perms.is_admin_user(error=True)
     async def cmd_verify_check(self, ctx, member_id: int):
         """Handle verify check command.
 
@@ -229,9 +237,9 @@ class Verify(commands.Cog):
         await self.__proc_resend_id(member)
 
     @commands.command(name="restart")
-    @botcore.perms.in_dm_channel()
-    @botcore.perms.is_guild_member(error=True)
-    @botcore.perms.is_unverified_user()
+    @iam.perms.in_dm_channel()
+    @iam.perms.is_guild_member(error=True)
+    @iam.perms.is_unverified_user()
     async def cmd_restart(self, ctx):
         """Handle restart command.
 
@@ -244,9 +252,9 @@ class Verify(commands.Cog):
         await self.__proc_restart(ctx.author)
 
     @commands.command(name="resend")
-    @botcore.perms.in_dm_channel()
-    @botcore.perms.is_guild_member(error=True)
-    @botcore.perms.is_unverified_user()
+    @iam.perms.in_dm_channel()
+    @iam.perms.is_guild_member(error=True)
+    @iam.perms.is_unverified_user()
     async def cmd_resend(self, ctx):
         """Handle resend command.
 
@@ -259,8 +267,8 @@ class Verify(commands.Cog):
         await self.__proc_resend_email(self.guild.get_member(ctx.author.id))
 
     @commands.Cog.listener()
-    @botcore.perms.is_human()
-    @botcore.perms.was_verified_user()
+    @iam.perms.is_human()
+    @iam.perms.was_verified_user()
     async def on_member_join(self, member):
         """Handle member joining that was previously verified.
 
@@ -272,11 +280,11 @@ class Verify(commands.Cog):
         await self.__proc_grant_rank(member)
 
     @commands.Cog.listener()
-    @botcore.perms.in_dm_channel()
-    @botcore.perms.is_human()
-    @botcore.perms.is_not_command()
-    @botcore.perms.is_guild_member()
-    @botcore.perms.is_unverified_user()
+    @iam.perms.in_dm_channel()
+    @iam.perms.is_human()
+    @iam.perms.is_not_command()
+    @iam.perms.is_guild_member()
+    @iam.perms.is_unverified_user()
     async def on_message(self, message):
         """Handle DM received by unverified member.
 

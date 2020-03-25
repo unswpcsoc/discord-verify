@@ -28,22 +28,22 @@ SOFTWARE.
 
 from discord.ext import commands
 
-import botcore.perms
-from botcore.config import config
-from botcore.core import Core
-from botcore.db import Database
-from botcore.mail import Mail
-from botcore.verify import Verify
-from botcore.sign import Sign
+import iam.perms
+from iam.config import config
+from iam.core import Core
+from iam.db import Database
+from iam.mail import Mail
+from iam.verify import Verify
+from iam.sign import Sign
 
 def main():
     bot = commands.Bot(command_prefix=config["command-prefix"])
 
-    bot.add_cog(Core(bot))
-    bot.add_cog(Database())
-    bot.add_cog(Mail())
-    bot.add_cog(Verify(bot))
-    bot.add_cog(Sign(bot))
+    bot.load_extension("iam.core")
+    bot.load_extension("iam.db")
+    bot.load_extension("iam.mail")
+    bot.load_extension("iam.verify")
+    bot.load_extension("iam.sign")
 
     bot.run(config["bot-token"])
 

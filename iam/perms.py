@@ -26,7 +26,7 @@ SOFTWARE.
 from functools import wraps
 from inspect import iscoroutinefunction
 
-from botcore.config import config
+from iam.config import config
 
 def check(predicate, error):
     """ Decorate method to only execute if it passes a check.

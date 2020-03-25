@@ -29,6 +29,14 @@ import google.cloud.exceptions
 from secrets import token_bytes
 from discord.ext import commands
 
+def setup(bot):
+    """Add Database cog to bot.
+
+    Args:
+        bot: Bot object to add cog to.
+    """
+    bot.add_cog(Database())
+
 class MemberNotFound(Exception):
     """Member not found in database."""
     pass
