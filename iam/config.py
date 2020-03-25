@@ -35,6 +35,16 @@ CONFIG_FILE = f"{CONFIG_DIR}/config.yml"
 try:
     with open(CONFIG_FILE, "r", encoding="utf-8") as fs:
         config = yaml.load(fs)
+    PREFIX = config["command-prefix"]
+    SERVER_ID = config["server-id"]
+    VER_ROLE = config["verified-role"]
+    ALLOW_CHANNELS = config["allowed-channels"]
+    ADMIN_CHANNEL = config["admin-channel"]
+    ADMIN_ROLES = config["admin-roles"]
+    EMAIL = config["email-address"]
+    AWS_REGION = config["aws-region"]
+    AWS_ACCESS_KEY_ID = config["aws-access-key-id"]
+    AWS_SECRET_ACCESS_KEY = config["aws-secret-access-key"]
 except IOError as err:
     raise ConfigFileNotFound("Can't find config file! Create a config.yml "
         "file in the config directory with similar structure to default.yml.")
