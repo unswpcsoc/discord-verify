@@ -273,4 +273,4 @@ def _get_role_ids(member):
     Returns:
         List of IDs of all roles member has.
     """
-    return list(map(lambda r: r.id, member.roles))
+    return [r.id for r in member.roles]
