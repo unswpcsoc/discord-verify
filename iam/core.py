@@ -24,7 +24,9 @@ SOFTWARE.
 """Handle core functions of the bot."""
 
 from discord.ext import commands
+from inspect import getdoc
 
+from iam.config import PREFIX
 import iam.perms
 
 def setup(bot):
@@ -48,26 +50,50 @@ class Core(commands.Cog):
             bot: Bot object that registered this cog.
         """
         self.bot = bot
+        self.bot.remove_command("help")
 
     @commands.Cog.listener()
     async def on_ready(self):
         """Print message to console on bot startup."""
         print(f"Bot running with command prefix '{self.bot.command_prefix}'")
 
-    @commands.group(name="iam")
-    async def grp_iam(self, ctx):
-        """Register iam command group.
-
-        Args:
-            ctx: Context object associated with command invocation.
-        """
-        pass
-
-    @grp_iam.command(name="exit")
+    @commands.command(
+        name="help",
+        help="Display this help dialogue.",
+        usage=f"**{PREFIX}help**"
+    )
     @iam.perms.in_admin_channel(error=True)
     @iam.perms.is_admin_user(error=True)
-    async def cmd_iam_exit(self, ctx):
-        """Handle iam exit command.
+    async def cmd_help(self, ctx):
+        """Handle help command.
+
+        Display list of all commands, their usage and their subcommands.
+
+        Args:
+            ctx. Context object associated with command invocation.
+        """
+        out = ["__All commands:__"]
+        for cmd in self.bot.commands:
+            if cmd.hidden:
+                continue
+            help = [str(cmd.usage), cmd.help]
+            if isinstance(cmd, commands.Group) \
+                and len(cmd.commands) > 0:
+                subs = ["__Subcommands__"]
+                subs += [f"{PREFIX}{c.qualified_name}" for c in cmd.commands]
+                help.append(" | ".join(subs))
+            out.append("\n".join(help))
+        await ctx.send("\n\n".join(out))
+
+    @commands.command(
+        name="exit",
+        help="Gracefully log out and shut down the bot.",
+        usage=f"**{PREFIX}exit**"
+    )
+    @iam.perms.in_admin_channel(error=True)
+    @iam.perms.is_admin_user(error=True)
+    async def cmd_exit(self, ctx):
+        """Handle exit command.
         
         Gracefully log out and shut down the bot.
 
