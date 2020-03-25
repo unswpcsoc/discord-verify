@@ -27,8 +27,8 @@ SOFTWARE.
 
 from discord.ext import commands
 
-import iam.perms
 from iam.config import BOT_TOKEN, PREFIX
+import iam.perms
 from iam.core import Core
 from iam.db import Database
 from iam.mail import Mail
@@ -36,15 +36,15 @@ from iam.verify import Verify
 from iam.sign import Sign
 
 def main():
-    bot = commands.Bot(command_prefix=PREFIX)
+    BOT = commands.Bot(command_prefix=PREFIX)
 
-    bot.load_extension("iam.core")
-    bot.load_extension("iam.db")
-    bot.load_extension("iam.mail")
-    bot.load_extension("iam.verify")
-    bot.load_extension("iam.sign")
+    BOT.load_extension("iam.core")
+    BOT.load_extension("iam.db")
+    BOT.load_extension("iam.mail")
+    BOT.load_extension("iam.verify")
+    BOT.load_extension("iam.sign")
 
-    bot.run(BOT_TOKEN)
+    BOT.run(BOT_TOKEN)
 
 if __name__ == "__main__":
     main()
