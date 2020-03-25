@@ -589,8 +589,8 @@ class Verify(commands.Cog):
             f"`{full_name}`, then type `!verify approve {member.id}` "
             f"or `!verify reject {member.id} \"reason\"`.", files=files)
 
-        await member.send("Your attachment has been forwarded to "
-            "the execs. Please wait.")
+        await member.send("Your attachment(s) have been forwarded to the "
+            "execs. Please wait.")
         patch = {MemberKey.ID_MESSAGE: message.id}
         self.db.update_member_data(member.id, patch)
         self.verifying[member.id].update(patch)
