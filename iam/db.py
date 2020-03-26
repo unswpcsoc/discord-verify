@@ -35,6 +35,16 @@ LOG = None
 """Logger for this module."""
 
 COG_NAME = "Database"
+"""Name of this module's cog."""
+
+CERTIFICATE_FILE = "config/firebase_credentials.json"
+"""Location of Firebase certificate file."""
+
+COL_MEMBERS = "members"
+"""Name of member collection in database."""
+
+COL_SECRETS = "secrets"
+"""Name of secrets collection in database"""
 
 def setup(bot):
     """Add Database cog to bot and set up logging.
@@ -63,8 +73,31 @@ def teardown(bot):
         LOG.removeHandler(handler)
 
 class MemberNotFound(Exception):
-    """Member not found in database."""
-    pass
+    """Member not found in database.
+
+    Attributes:
+        member_id: Integer representing Discord ID of member queried.
+        context: String containing any additional context related to this
+                    exception being thrown.
+    """
+    def __init__(self, member_id, context):
+        """Init exception with given args.
+
+        Args:
+            member_id: Integer representing Discord ID of member queried.
+            context: String containing any additional context related to this
+                     exception being thrown.
+        """
+        self.member_id = member_id
+        self.context = context
+
+    def def_handler(self):
+        """Default handler for this exception.
+
+        Log an error message containing relevant context.
+        """
+        LOG.error(f"Member '{self.member_id}' could not be found in database! "
+            f"Context: '{self.context}'")
 
 class MemberKey():
     """Keys for member entries in database."""
@@ -86,19 +119,10 @@ class Database(commands.Cog):
     Attributes:
         db: Connected Firestore Client.
     """
-    CERTIFICATE_FILE = "config/firebase_credentials.json"
-    """Location of Firebase certificate file."""
-
-    COL_MEMBERS = "members"
-    """Name of member collection in the database."""
-
-    COL_SECRETS = "secrets"
-    """Name of secrets collection in the database"""
-
     def __init__(self):
         """Init cog and connect to Firestore."""
-        self.db = None
-        self._connect()
+        LOG.debug(f"Initialising {COG_NAME} cog...")
+        self.db = firestore_connect()
 
     def get_member_data(self, id):
         """Retrieve entry for member in database.
@@ -112,11 +136,13 @@ class Database(commands.Cog):
         Raises:
             MemberNotFound: If member does not exist in database.
         """
+        LOG.debug(f"Retrieving member '{id}' from database...")
         data = self._get_member_doc(id).get().to_dict()
         if data is None:
-            LOG.warning(f"Failed to retrieve member {id} from database - "
+            LOG.warning(f"Failed to retrieve member '{id}' from database - "
                 "they do not exist")
             raise MemberNotFound
+        LOG.debug(f"Retrieved member '{id}' from database")
         return data
 
     def get_unverified_members_data(self):
@@ -144,7 +170,9 @@ class Database(commands.Cog):
             id: Discord ID of member.
             info: Dict of keys and values to write.
         """
+        LOG.debug(f"Writing entry for member '{id}' in database: {info}...")
         self._get_member_doc(id).set(info)
+        LOG.debug(f"Wrote entry for member '{id}' in database: {info}")
 
     def update_member_data(self, id, info, must_exist=True):
         """Update entry for member in database.
@@ -166,9 +194,10 @@ class Database(commands.Cog):
         """
         try:
             self._get_member_doc(id).update(info)
+            LOG.debug(f"Updated member '{id}' in database. Patch: {info}")
         except google.cloud.exceptions.NotFound:
-            LOG.warning(f"Failed to update member {id} entry in database - "
-                "they do not exist.")
+            LOG.warning(f"Failed to update member '{id}' entry in database - "
+                "they do not exist")
             raise MemberNotFound
 
     def delete_member_data(self, id, must_exist=True):
@@ -185,12 +214,14 @@ class Database(commands.Cog):
             MemberNotFound: If member does not exist in database and
                             must_exist == True.
         """
+        LOG.debug(f"Deleting member '{id}' from database...")
         doc = self._get_member_doc(id)
         if must_exist and doc.get().to_dict() is None:
-            LOG.warning(f"Failed to delete member {id} in database - they do "
-                "not exist.")
+            LOG.warning(f"Failed to delete member '{id}' in database - they do "
+                "not exist")
             raise MemberNotFound
         doc.delete()
+        LOG.debug(f"Deleted member '{id}' from database")
 
     def get_secret(self, id):
         """Retrieve entry for secret from database.
@@ -203,6 +234,7 @@ class Database(commands.Cog):
         Returns:
             Secret bytes associated with id.
         """
+        LOG.debug(f"Retrieving '{id}' secret from Firebase")
         doc = self._get_secrets_col().document(str(id))
         data = doc.get().to_dict()
         
@@ -213,20 +245,9 @@ class Database(commands.Cog):
             LOG.info(f"Generating new '{id}' secret...")
             secret = token_bytes(64)
             doc.set({"secret": secret})
-            LOG.info(f"Saved new {id} secret in Firebase")
+            LOG.info(f"Saved new '{id}' secret in Firebase")
         
         return secret
-
-    def _connect(self):
-        """Connect to Firestore.
-        
-        Required for all other methods to function.
-        """
-        LOG.debug("Logging in to Firebase...")
-        cred = credentials.Certificate(self.CERTIFICATE_FILE)
-        firebase_admin.initialize_app(cred)
-        self.db = firestore.client()
-        LOG.info("Logged in to Firebase")
     
     def _get_member_doc(self, id):
         """Retrieve member doc from database.
@@ -245,7 +266,7 @@ class Database(commands.Cog):
         Returns:
             Firestore collection of members.
         """
-        return self.db.collection(self.COL_MEMBERS)
+        return self.db.collection(COL_MEMBERS)
     
     def _get_secrets_col(self):
         """Get secrets collection.
@@ -253,4 +274,19 @@ class Database(commands.Cog):
         Returns:
             Firestore collection of secrets.
         """
-        return self.db.collection(self.COL_SECRETS)
+        return self.db.collection(COL_SECRETS)
+
+def firestore_connect():
+    """Connect to Firestore.
+    
+    Required for all other methods to function.
+
+    Returns:
+        Firestore client object.
+    """
+    LOG.debug("Logging in to Firebase...")
+    cred = credentials.Certificate(CERTIFICATE_FILE)
+    firebase_admin.initialize_app(cred)
+    client = firestore.client()
+    LOG.info("Logged in to Firebase")
+    return client

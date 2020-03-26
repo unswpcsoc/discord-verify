@@ -140,8 +140,9 @@ class Verify(commands.Cog, name=COG_NAME):
         Args:
             bot: Bot object that registered this cog.
         """
-        LOG.debug(f"Initialising {self.qualified_name} cog...")
+        LOG.debug(f"Initialising {COG_NAME} cog...")
         self.bot = bot
+        self.log = LOG
         self.__secret_ = None
         self.__state_handler = [
             self.__state_await_name,
@@ -326,9 +327,9 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_grant_rank(member)
 
     @commands.Cog.listener()
-    @iam.perms.in_dm_channel()
-    @iam.perms.is_human()
     @iam.perms.is_not_command()
+    @iam.perms.is_human()
+    @iam.perms.in_dm_channel()
     @iam.perms.is_guild_member()
     @iam.perms.is_unverified_user()
     async def on_message(self, message):
@@ -706,6 +707,7 @@ class Verify(commands.Cog, name=COG_NAME):
         if len(mentions) == 0:
             await self.admin_channel.send("No members currently awaiting "
             "approval.")
+            return
 
         mentions_formatted = "\n".join(mentions)
         await self.admin_channel.send("__Members awaiting approval:__\n"
@@ -750,8 +752,8 @@ class Verify(commands.Cog, name=COG_NAME):
         """
         self.db.update_member_data(member.id, {MemberKey.ID_VER: True})
         await member.add_roles(self.guild.get_role(VER_ROLE))
+        LOG.info(f"Granted verified rank to member '{member.id}'")
         if member.id in self.verifying:
             del self.verifying[member.id]
         await member.send("You are now verified. Welcome to the server!")
-
         await self.admin_channel.send(f"{member.mention} is now verified.")

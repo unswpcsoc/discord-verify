@@ -30,8 +30,48 @@ from iam.config import (
     PREFIX, SERVER_ID, VER_ROLE, ALLOW_CHANNELS, ADMIN_CHANNEL, ADMIN_ROLES
 )
 
-def check(predicate, error):
-    """ Decorate method to only execute if it passes a check.
+class CheckFailed(Exception):
+    """Method pre-execution check failed.
+
+    Attributes:
+        logger: Logger to write debug info to.
+        name: String representing name of failed check function.
+        ctx: Context object associated with method invocation.
+        silent: Boolean for whether to send error message or not in
+                default_handle.
+        msg: String representing error message to send in invocation context.
+    """
+    def __init__(self, logger, name, ctx, silent, msg):
+        """Init exception with given args.
+
+        Args:
+            logger: Logger to write debug info to.
+            name: String representing name of failed check function.
+            ctx: Context object associated with method invocation.
+            silent: Boolean for whether to send error message or not in
+                    default_handle.
+            msg: String representing error message to send in invocation
+                 context.
+        """
+        self.logger = logger
+        self.name = name
+        self.ctx = ctx
+        self.silent = silent
+        self.msg = msg
+
+    async def def_handler(self):
+        """Default handler for this exception.
+        
+        Log a debug message and send msg to ctx if silent == False.
+        """
+        self.logger.debug(f"User '{self.ctx.author.id}' failed check "
+            f"{self.name} in channel '{self.ctx.channel.id}' during command "
+            f"invocation: '{self.ctx.message.content}'")
+        if not self.silent:
+            await self.ctx.send(self.msg)
+
+def check(predicate):
+    """Decorate method to only execute if it passes a check.
     
     Check is the function 'predicate'.
 
@@ -41,7 +81,6 @@ def check(predicate, error):
         predicate: Function that takes in cog and context as args and returns
         boolean value representing result of a check. Need not be async, but
         can be.
-        error: Boolean for whether to send error message if check fails.
     """
     async_predicate = predicate
     if not iscoroutinefunction(predicate):
@@ -52,13 +91,9 @@ def check(predicate, error):
 
     def decorator(func):
         @wraps(func)
-        async def wrapper(cog, ctx, *args, **kwargs):
-            res, err_msg = await async_predicate(cog, ctx)
-            if not res:
-                if error:
-                    await ctx.send(err_msg)
-                return
-            return await func(cog, ctx, *args, **kwargs)
+        async def wrapper(cog, ctx, *args):
+            if await async_predicate(cog, ctx):
+                return await func(cog, ctx, *args)
         return wrapper
 
     return decorator
@@ -71,15 +106,19 @@ def is_verified_user(error=False):
     Cog must have bot as instance variable.
 
     Args:
-        error: Boolean for whether to send error message if check fails.
+        error: Boolean for whether to raise exception if check fails.
+
+    Raises:
+        CheckFailed: Check failed and error == True.
     """
     def predicate(cog, ctx):
         member = get_member(cog, ctx.author.id)
         if member is None or VER_ROLE not in get_role_ids(member):
-            return False, "You must be verified to do that."
-        return True, None
+            raise CheckFailed(cog.log, "is_verified_user", ctx, not error,
+                "You must be verified to do that.")
+        return True
     
-    return check(predicate, error)
+    return check(predicate)
 
 def was_verified_user(error=False):
     """Decorate method to only execute if invoker was verified in past.
@@ -90,7 +129,10 @@ def was_verified_user(error=False):
     Cog must have bot and db as instance variables.
 
     Args:
-        error: Boolean for whether to send error message if check fails.
+        error: Boolean for whether to raise exception if check fails.
+
+    Raises:
+        CheckFailed: Check failed and error == True.
     """
     def currently_verified(cog, ctx):
         member = get_member(cog, ctx.author.id)
@@ -103,10 +145,11 @@ def was_verified_user(error=False):
             return True
         member_info = cog.db.get_member_data(ctx.author.id)
         if member_info == None or not member_info["verified"]:
-            return False, "You must be verified to do that."
-        return True, None
+            raise CheckFailed(cog.log, "was_verified_user", ctx, not error,
+                "You must be verified to do that.")
+        return True
 
-    return check(predicate, error)
+    return check(predicate)
 
 def is_unverified_user(error=False):
     """Decorate method to only execute if invoker does not have verified role.
@@ -116,15 +159,19 @@ def is_unverified_user(error=False):
     Cog must have bot as instance variable.
 
     Args:
-        error: Boolean for whether to send error message if check fails.
+        error: Boolean for whether to raise exception if check fails.
+
+    Raises:
+        CheckFailed: Check failed and error == True.
     """
     def predicate(cog, ctx):
         member = get_member(cog, ctx.author.id)
         if member is not None and VER_ROLE in get_role_ids(member):
-            return False, "You are already verified."
-        return True, None
+            raise CheckFailed(cog.log, "is_uverified_user", ctx, not error,
+                "You are already verified.")
+        return True
     
-    return check(predicate, error)
+    return check(predicate)
 
 def never_verified_user(error=False):
     """Decorate method to only execute if invoker was never verified.
@@ -134,7 +181,10 @@ def never_verified_user(error=False):
     Cog must have bot and db as instance variables.
 
     Args:
-        error: Boolean for whether to send error message if check fails.
+        error: Boolean for whether to raise exception if check fails.
+
+    Raises:
+        CheckFailed: Check failed and error == True.
     """
     def currently_verified(cog, ctx):
         member = get_member(cog, ctx.author.id)
@@ -146,10 +196,11 @@ def never_verified_user(error=False):
         if not currently_verified(cog, ctx):
             member_info = cog.db.get_member_data(ctx.author.id)
             if member_info == None or not member_info["verified"]:
-                return True, None
-        return False, "You are already verified."
+                return True
+        raise CheckFailed(cog.log, "never_verified_user", ctx, not error,
+            "You are already verified.")
 
-    return check(predicate, error)
+    return check(predicate)
 
 def is_admin_user(error=False):
     """Decorate method to only execute if invoker has at least one admin role.
@@ -159,14 +210,18 @@ def is_admin_user(error=False):
     Cog must have bot as instance variable.
 
     Args:
-        error: Boolean for whether to send error message if check fails.
+        error: Boolean for whether to raise exception if check fails.
+
+    Raises:
+        CheckFailed: Check failed and error == True.
     """
     def predicate(cog, ctx):
         member = get_member(cog, ctx.author.id)
         if set(ADMIN_ROLES).isdisjoint(get_role_ids(member)):
-            return False, "You are not authorised to do that."
-        return True, None
-    return check(predicate, error)
+            raise CheckFailed(cog.log, "is_admin_user", ctx, not error,
+                "You are not authorised to do that.")
+        return True
+    return check(predicate)
 
 def is_guild_member(error=False):
     """Decorate method to only execute if invoked by member of guild.
@@ -176,13 +231,17 @@ def is_guild_member(error=False):
     Cog must have bot as instance variable.
 
     Args:
-        error: Boolean for whether to send error message if check fails.
+        error: Boolean for whether to raise exception if check fails.
+
+    Raises:
+        CheckFailed: Check failed and error == True.
     """
     def predicate(cog, ctx):
         if get_member(cog, ctx.author.id) is None:
-            return False, "You must be a member of the server to do that."
-        return True, None
-    return check(predicate, error)
+            raise CheckFailed(cog.log, "is_guild_member", ctx, not error,
+                "You must be a member of the server to do that.")
+        return True
+    return check(predicate)
 
 def in_allowed_channel(error=False):
     """Decorate method to only execute if invoked in an allowed channel.
@@ -190,13 +249,17 @@ def in_allowed_channel(error=False):
     Allowed channels defined in config.
 
     Args:
-        error: Boolean for whether to send error message if check fails.
+        error: Boolean for whether to raise exception if check fails.
+
+    Raises:
+        CheckFailed: Check failed and error == True.
     """
     def predicate(cog, ctx):
         if ctx.channel.id not in ALLOW_CHANNELS:
-            return False, "You cannot do that in this channel."
-        return True, None
-    return check(predicate, error)
+            raise CheckFailed(cog.log, "in_allowed_channel", ctx, not error,
+                "You cannot do that in this channel.")
+        return True
+    return check(predicate)
 
 def in_admin_channel(error=False):
     """Decorate method to only execute if invoked in admin channel.
@@ -204,25 +267,33 @@ def in_admin_channel(error=False):
     Admin channel defined in config.
 
     Args:
-        error: Boolean for whether to send error message if check fails.
+        error: Boolean for whether to raise exception if check fails.
+
+    Raises:
+        CheckFailed: Check failed and error == True.
     """
     def predicate(cog, ctx):
         if ctx.channel.id != ADMIN_CHANNEL:
-            return False, "You must be in the admin channel to do that."
-        return True, None
-    return check(predicate, error)
+            raise CheckFailed(cog.log, "in_admin_channel", ctx, not error,
+                "You must be in the admin channel to do that.")
+        return True
+    return check(predicate)
 
 def in_dm_channel(error=False):
     """Decorate method to only execute if invoked in DM channel.
 
     Args:
-        error: Boolean for whether to send error message if check fails.
+        error: Boolean for whether to raise exception if check fails.
+
+    Raises:
+        CheckFailed: Check failed and error == True.
     """
     def predicate(cog, ctx):
         if ctx.guild is not None:
-            return False, "You must be in a DM channel to do that."
-        return True, None
-    return check(predicate, error)
+            raise CheckFailed(cog.log, "in_dm_channel", ctx, not error,
+                "You must be in a DM channel to do that.")
+        return True
+    return check(predicate)
 
 def is_human():
     """Decorate method to only execute if invoked by human.
@@ -231,9 +302,9 @@ def is_human():
     """
     def predicate(cog, ctx):
         if ctx.author.bot:
-            return False, None
-        return True, None
-    return check(predicate, False)
+            return False
+        return True
+    return check(predicate)
 
 def is_not_command():
     """Decorate method to only execute if not command.
@@ -244,9 +315,9 @@ def is_not_command():
     """
     def predicate(cog, ctx):
         if ctx.content.startswith(PREFIX):
-            return False, None
-        return True, None
-    return check(predicate, False)
+            return False
+        return True
+    return check(predicate)
 
 def get_member(cog, id):
     """Get member with given Discord ID.

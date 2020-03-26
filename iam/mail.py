@@ -61,8 +61,25 @@ def teardown(bot):
         LOG.removeHandler(handler)
 
 class MailError(Exception):
-    """Email failed to send."""
-    pass
+    """Email failed to send.
+    
+    Attributes:
+        recipient: String representing recipient email address.
+    """
+    def __init__(self, recipient):
+        """Init exception with given message.
+
+        Args:
+            recipient: String representing recipient email address.
+        """
+        self.recipient = recipient
+
+    def def_handler(self):
+        """Default handler for this exception.
+
+        Log msg as error.
+        """
+        LOG.error(f"SES email for {self.recipient} failed to send")
 
 class Mail(commands.Cog, name=COG_NAME):
     """Handle email functions"""
@@ -106,8 +123,7 @@ class Mail(commands.Cog, name=COG_NAME):
             )
             LOG.info(f"SES email {response['MessageId']} sent to {recipient}")
         except ClientError:
-            LOG.error(f"SES email for {recipient} failed to send")
-            raise MailError("Email could not be sent!")
+            raise MailError(recipient)
 
     def _connect(self):
         """Connect to Amazon SES.
