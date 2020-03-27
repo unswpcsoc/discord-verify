@@ -83,7 +83,7 @@ class MailError(Exception):
 
         Log msg as error.
         """
-        LOG.error(f"SES email for {self.recipient} failed to send")
+        LOG.error(f"Email for recipient '{self.recipient}' failed to send")
 
 def is_valid_email(email):
     """Returns whether an email is valid.
@@ -132,7 +132,8 @@ class Mail(commands.Cog, name=COG_NAME):
                 },
                 Source=EMAIL
             )
-            LOG.info(f"SES email {response['MessageId']} sent to {recipient}")
+            LOG.info(f"SES email '{response['MessageId']}' "
+                f"sent to '{recipient}'")
         except ClientError:
             raise MailError(recipient)
 
