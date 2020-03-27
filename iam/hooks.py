@@ -95,8 +95,8 @@ def pre(action, log_check=True, error=False):
                 await make_coro(action)(mtd, cls, *args)
             except CheckFailed as err:
                 if log_check:
-                    log_event(cls, args[0], f"{mtd.__name__}: failed check " 
-                        f"'{action.__name__}'")
+                    log_event(cls, f"{mtd.__name__}: failed check " 
+                        f"'{action.__name__}'", *args)
                 if error:
                     raise err
                 return
@@ -126,8 +126,8 @@ def post(action, log_check=True, error=False):
                 await make_coro(action)(mtd, cls, *args)
             except CheckFailed as err:
                 if log_check:
-                    log_event(cls, args[0], f"{mtd.__name__}: failed check " 
-                        f"'{action.__name__}'")
+                    log_event(cls, f"{mtd.__name__}: failed check " 
+                        f"'{action.__name__}'", *args)
                 if error:
                     raise err
                 return
@@ -139,13 +139,13 @@ def log(meta="", level=DEBUG):
 
     Args:
         func: Function called.
-        cog: Cog associated with function call.
+        *args: Args associated with function call.
         ctx: Context object associated with function call. Associated cog must
              have log as an instance variable.
     """
-    def wrapper(func, cog, ctx, *_):
+    def wrapper(func, cog, *args):
         info = [func.__name__, meta]
-        log_event(cog, ctx, ": ".join(filter(None, info)), level)
+        log_event(cog, ": ".join(filter(None, info)), *args, level=level)
     return wrapper
 
 def log_attempt(meta="", level=DEBUG):
@@ -187,8 +187,8 @@ def is_verified_user(func, cog, object, *_):
 
     Args:
         func: Function invoked.
-        cog: Cog assicated with command invocation.
-        object: Object associated with command invocation.
+        cog: Cog associated with function invocation.
+        object: Object associated with function invocation.
 
     Raises:
         CheckFailed: If invoker does not have verified role.
@@ -207,8 +207,8 @@ def was_verified_user(func, cog, object, *_):
 
     Args:
         func: Function invoked.
-        cog: Cog associated with command invocation.
-        object: Object associated with command invocation.
+        cog: Cog associated with function invocation.
+        object: Object associated with function invocation.
 
     Raises:
         CheckFailed: If invoker was never verified in past.
@@ -229,8 +229,8 @@ def is_unverified_user(func, cog, object, *_):
 
     Args:
         func: Function invoked.
-        cog: Cog associated with command invocation.
-        object: Object associated with command invocation.
+        cog: Cog associated with function invocation.
+        object: Object associated with function invocation.
 
     Raises:
         CheckFailed: If invoker has verified role.
@@ -249,8 +249,8 @@ def never_verified_user(func, cog, object, *_):
 
     Args:
         func: Function invoked.
-        cog: Cog associated with command invocation.
-        object: Object associated with command invocation.
+        cog: Cog associated with function invocation.
+        object: Object associated with function invocation.
 
     Raises:
         CheckFailed: If invoker was verified in past.
@@ -271,8 +271,8 @@ def is_admin_user(func, cog, object, *_):
 
     Args:
         func: Function invoked.
-        cog: Cog associated with command invocation.
-        object: Object associated with command invocation.
+        cog: Cog associated with function invocation.
+        object: Object associated with function invocation.
 
     Raises:
         CheckFailed: If invoker does not have at least one admin role.
@@ -290,8 +290,8 @@ def is_guild_member(func, cog, object, *_):
 
     Args:
         func: Function invoked.
-        cog: Cog associated with command invocation.
-        object: Object associated with command invocation.
+        cog: Cog associated with function invocation.
+        object: Object associated with function invocation.
 
     Raises:
         CheckFailed: If invoker is not member of guild.
@@ -307,8 +307,8 @@ def in_allowed_channel(func, cog, object, *_):
 
     Args:
         func: Function invoked.
-        cog: Cog associated with command invocation.
-        object: Object associated with command invocation.
+        cog: Cog associated with function invocation.
+        object: Object associated with function invocation.
 
     Raises:
         CheckFailed: If not invoked in an allowed channel.
@@ -323,8 +323,8 @@ def in_admin_channel(func, cog, object, *_):
 
     Args:
         func: Function invoked.
-        cog: Cog associated with command invocation.
-        object: Object associated with command invocation.
+        cog: Cog associated with function invocation.
+        object: Object associated with function invocation.
 
     Raises:
         CheckFailed: If not invoked in admin channel.
@@ -337,8 +337,8 @@ def in_dm_channel(func, cog, object, *_):
 
     Args:
         func: Function invoked.
-        cog: Cog associated with command invocation.
-        object: Object associated with command invocation.
+        cog: Cog associated with function invocation.
+        object: Object associated with function invocation.
 
     Raises:
         CheckFailed: If not invoked in DM channel.
@@ -353,8 +353,8 @@ def is_human(func, cog, object, *_):
 
     Args:
         func: Function invoked.
-        cog: Cog associated with command invocation.
-        object: Object associated with command invocation.
+        cog: Cog associated with function invocation.
+        object: Object associated with function invocation.
 
     Raises:
         CheckFailed: If invoked by bot.

@@ -85,28 +85,26 @@ def _next_state(state):
         return wrapper
     return decorator
 
-def _awaiting_approval(func):
-    """Decorate method to only execute if member is awaiting approval.
+def _awaiting_approval(func, cog, object, *_):
+    """Raises exception if invoker is not awaiting approval.
+    
+    Can only be used within the Verify cog.
 
-    If not, send error message to admin channel defined in config.
+    Args:
+        func: Function invoked.
+        cog: Verify cog.
+        object: Object associated with function invocation.
 
-    Used with the Verify class.
+    Raises:
+        CheckFailed: If invoker does not have verified role.
     """
-    @wraps(func)
-    async def wrapper(self, member, *args):
-        if member.id not in self.verifying:
-            await self.admin_channel.send("That user is not currently "
-                "undergoing verification.")
-            return
-        
-        if self.verifying[member.id][MemberKey.STATE] \
-            != self.State.AWAIT_APPROVAL:
-            await self.admin_channel.send("That user is not awaiting "
-                "approval.")
-            return
-        
-        await func(self, member, *args)
-    return wrapper
+    if object.id not in cog.verifying:
+        raise iam.hooks.CheckFailed(cog.admin_channel, "That user is not "
+            "currently undergoing verification")
+    if cog.verifying[object.id][MemberKey.STATE] \
+        != cog.State.AWAIT_APPROVAL:
+        raise iam.hooks.CheckFailed(cog.admin_channel, "That user is not "
+            "awaiting approval.")
 
 class Verify(commands.Cog, name=COG_NAME):
     """Handle automatic verification of server members.
@@ -381,6 +379,8 @@ class Verify(commands.Cog, name=COG_NAME):
         msg = bytes(str(user.id), "utf8")
         return hmac.new(self.__secret, msg, "sha256").hexdigest()
 
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_begin(self, member):
         """Begin verification process for member.
 
@@ -420,6 +420,8 @@ class Verify(commands.Cog, name=COG_NAME):
 
         await self.__proc_request_name(member)
 
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_restart(self, user):
         """Restart verification process for user.
 
@@ -434,6 +436,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_begin(user)
 
     @_next_state(State.AWAIT_NAME)
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_request_name(self, member):
         """DM name request to member and await response.
 
@@ -444,6 +448,8 @@ class Verify(commands.Cog, name=COG_NAME):
             "government-issued ID?\nYou can restart this verification process "
             f"at any time by typing `{PREFIX}restart`.")
 
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __state_await_name(self, member, message):
         """Handle message received from member while awaiting name.
 
@@ -459,6 +465,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_request_unsw(member)
 
     @_next_state(State.AWAIT_UNSW)
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_request_unsw(self, member):
         """DM is UNSW? request to member and await response.
 
@@ -467,6 +475,8 @@ class Verify(commands.Cog, name=COG_NAME):
         """
         await member.send("Are you a UNSW student? Please type `y` or `n`.")
 
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __state_await_unsw(self, member, message):
         """Handle message received from member while awaiting is UNSW?.
 
@@ -487,6 +497,8 @@ class Verify(commands.Cog, name=COG_NAME):
             await member.send("Please type `y` or `n`.")
 
     @_next_state(State.AWAIT_ZID)
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_request_zid(self, member):
         """DM zID request to member and await response.
 
@@ -496,6 +508,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await member.send("What is your 7 digit student number, "
             "not including the 'z' at the start?")
     
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __state_await_zid(self, member, message):
         """Handle message received from member while awaiting zID.
 
@@ -526,6 +540,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_send_email(member, email)
 
     @_next_state(State.AWAIT_EMAIL)
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_request_email(self, member):
         """DM email address request to member and await response.
 
@@ -534,6 +550,8 @@ class Verify(commands.Cog, name=COG_NAME):
         """
         await member.send("What is your email address?")
 
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __state_await_email(self, member, message):
         """Handle message received from member while awaiting email address.
 
@@ -551,6 +569,8 @@ class Verify(commands.Cog, name=COG_NAME):
 
         await self.__proc_send_email(member, email)
 
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_send_email(self, member, email):
         """Send verification code to member's email address.
 
@@ -581,6 +601,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_request_code(member)
 
     @_next_state(State.AWAIT_CODE)
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_request_code(self, member):
         """DM verification code request to member and await response.
 
@@ -591,6 +613,8 @@ class Verify(commands.Cog, name=COG_NAME):
             "(check your spam folder if you don't see it).\n"
             f"You can request another email by typing `{PREFIX}resend`.")
 
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __state_await_code(self, member, message):
         """Handle message received from member while awaiting code.
 
@@ -620,6 +644,8 @@ class Verify(commands.Cog, name=COG_NAME):
         else:
             await self.__proc_grant_rank(member)
 
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_resend_email(self, member):
         """Resend verification email to member's email address, if sent before.
 
@@ -633,6 +659,8 @@ class Verify(commands.Cog, name=COG_NAME):
             await self.__proc_send_email(member, email)
 
     @_next_state(State.AWAIT_ID)
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_request_id(self, member):
         """DM ID request to member and await response.
 
@@ -642,6 +670,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await member.send("Please send a message with a "
             "photo of your government-issued ID attached.")
 
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __state_await_id(self, member, message):
         """Handle message received from member while awaiting ID.
         
@@ -659,6 +689,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_forward_id_admins(member, attachments)
 
     @_next_state(State.AWAIT_APPROVAL)
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_forward_id_admins(self, member, attachments):
         """Forward member ID attachments to admin channel.
 
@@ -685,6 +717,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await member.send("Your attachment(s) have been forwarded to the "
             "execs. Please wait.")
 
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __state_await_approval(self, member, message):
         """Handle message received from member while awaiting exec approval.
 
@@ -696,7 +730,9 @@ class Verify(commands.Cog, name=COG_NAME):
         """
         pass
 
-    @_awaiting_approval
+    @iam.hooks.pre(_awaiting_approval, error=True)
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_exec_approve(self, member):
         """Approve member awaiting exec approval.
 
@@ -707,7 +743,9 @@ class Verify(commands.Cog, name=COG_NAME):
         """
         await self.__proc_grant_rank(member)
 
-    @_awaiting_approval
+    @iam.hooks.pre(_awaiting_approval, error=True)
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_exec_reject(self, member, reason):
         """Reject member awaiting exec approval and send them reason.
 
@@ -728,6 +766,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.admin_channel.send("Rejected verification request from "
             f"{member.mention}.")
 
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_display_pending(self):
         """Display list of members currently awaiting exec approval.
 
@@ -749,7 +789,9 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.admin_channel.send("__Members awaiting approval:__\n"
             f"{mentions_formatted}")
 
-    @_awaiting_approval
+    @iam.hooks.pre(_awaiting_approval, error=True)
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_resend_id(self, member):
         """Resend ID attachments from member to admin channel.
 
@@ -780,6 +822,8 @@ class Verify(commands.Cog, name=COG_NAME):
                 f"{member.id}` or `{PREFIX}verify reject {member.id} "
                 "\"reason\"`.", files=files)
 
+    @iam.hooks.pre(iam.hooks.log_invoke())
+    @iam.hooks.pre(iam.hooks.log_success())
     async def __proc_grant_rank(self, member):
         """Grant verified rank to member and notify them and execs.
 

@@ -25,7 +25,8 @@ SOFTWARE.
 
 import logging
 from time import time, localtime, strftime
-from discord import Message, Member
+from collections import defaultdict
+from discord import Message, Member, User
 from discord.ext.commands import Context
 
 CONSOLE_LOG_FMT = "[%(asctime)s] [%(module)s/%(levelname)s]: %(message)s"
@@ -76,19 +77,22 @@ def new_logger(name, c_level=logging.INFO, f_level=logging.DEBUG):
 
     return logger
 
-def log_event(cog, object, meta, level=logging.DEBUG):
+def log_event(cog, meta, *objects, level=logging.DEBUG):
     """Logs an event and information about its invocation.
 
     Cog must have log as an instance variable.
 
     Args:
         cog: Cog attached to event invocation.
-        object: Object attached to event invocation.
         meta: String representing info about event.
+        *objects: Objects attached to event invocation.
         level: Logging level to log at.
     """
-    object_dict = OBJECT_TO_DICT[type(object)](object)
-    cog.log.log(level, f"{meta} - {type(object).__name__}: {str(object_dict)}")
+    info = [meta]
+    for object in objects:
+        object_dict = OBJECT_TO_REP[type(object)](object)
+        info.append(f"{type(object).__name__}: {str(object_dict)}")
+    cog.log.log(level, " - ".join(info))
 
 def context_to_dict(ctx):
     """Convert Context object into dict containing their info.
@@ -125,24 +129,23 @@ def message_to_dict(message):
         "guild": guild.id if guild is not None else None
     }
 
-def member_to_dict(member):
-    """Convert Member object into dict containing their info.
+def user_to_dict(user):
+    """Convert user object into dict containing their info.
 
     Args:
-        member: Member object to be converted.
+        user: user object to be converted.
 
     Returns:
-        Dict containing information about member.
+        Dict containing information about user.
     """
     return {
-        "handle": f"{member.name}#{member.discriminator}",
-        "id": member.id,
-        "guild": member.guild.id
+        "handle": f"{user.name}#{user.discriminator}",
+        "id": user.id
     }
 
-OBJECT_TO_DICT = {
-    Context: context_to_dict,
-    Message: message_to_dict,
-    Member: message_to_dict,
-}
-"""Maps types to dict converter functions."""
+OBJECT_TO_REP = defaultdict(lambda: str)
+OBJECT_TO_REP[Context] = context_to_dict
+OBJECT_TO_REP[Message] = message_to_dict
+OBJECT_TO_REP[Member] = user_to_dict
+OBJECT_TO_REP[User] = user_to_dict
+"""Maps types to functions to convert param to type representable as string."""
