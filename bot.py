@@ -26,6 +26,7 @@ SOFTWARE.
 """Launches the Discord bot."""
 
 import sys
+from logging import INFO
 from discord.ext import commands
 
 from iam.log import new_logger
@@ -35,7 +36,7 @@ LOG = None
 
 def main():
     global LOG
-    new_logger("discord")
+    new_logger("discord", f_level=INFO)
     LOG = new_logger(__name__)
     sys.excepthook = exception_handler
 

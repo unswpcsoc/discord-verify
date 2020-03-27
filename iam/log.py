@@ -28,15 +28,11 @@ from time import time, localtime, strftime
 from discord import Message, Member
 from discord.ext.commands import Context
 
-CONSOLE_LOG_LVL = logging.INFO
-"""Console logging level."""
 CONSOLE_LOG_FMT = "[%(asctime)s] [%(module)s/%(levelname)s]: %(message)s"
 """Console logging format."""
 CONSOLE_TIME_FMT = "%H:%M:%S"
 """Console log timestamp format."""
 
-FILE_LOG_LVL = logging.DEBUG
-"""File logging level."""
 FILE_LOG_FMT = ("[%(asctime)s] [%(module)s/%(funcName)s/%(levelname)s]: "
                 "%(message)s")
 """File logging format."""
@@ -48,13 +44,15 @@ FILENAME_TIME_FMT = "%Y-%m-%d_%H-%M-%S"
 FILENAME = f"logs/{strftime(FILENAME_TIME_FMT, localtime(time()))}.log"
 """Log filename format."""
 
-def new_logger(name):
+def new_logger(name, c_level=logging.INFO, f_level=logging.DEBUG):
     """Create a new logger with the given name.
 
     Initialise it with constants set at the top of log.py.
 
     Args:
         name: String representing name of the logger to be created.
+        c_level: Logging level for console.
+        f_level: Logging level for file.
 
     Returns:
         The new logger.
@@ -65,20 +63,20 @@ def new_logger(name):
     logger.setLevel(logging.DEBUG)
 
     c_handler = logging.StreamHandler()
-    c_handler.setLevel(CONSOLE_LOG_LVL)
+    c_handler.setLevel(c_level)
     c_formatter = logging.Formatter(CONSOLE_LOG_FMT, CONSOLE_TIME_FMT)
     c_handler.setFormatter(c_formatter)
     logger.addHandler(c_handler)
 
     f_handler = logging.FileHandler(FILENAME)
-    f_handler.setLevel(FILE_LOG_LVL)
+    f_handler.setLevel(f_level)
     f_formatter = logging.Formatter(FILE_LOG_FMT, FILE_TIME_FMT)
     f_handler.setFormatter(f_formatter)
     logger.addHandler(f_handler)
 
     return logger
 
-def log_event(cog, object, level, meta):
+def log_event(cog, object, meta, level=logging.DEBUG):
     """Logs an event and information about its invocation.
 
     Cog must have log as an instance variable.
@@ -86,8 +84,8 @@ def log_event(cog, object, level, meta):
     Args:
         cog: Cog attached to event invocation.
         object: Object attached to event invocation.
-        level: Logging level to log at.
         meta: String representing info about event.
+        level: Logging level to log at.
     """
     object_dict = OBJECT_TO_DICT[type(object)](object)
     cog.log.log(level, f"{meta} - {type(object).__name__}: {str(object_dict)}")
