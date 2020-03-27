@@ -336,7 +336,8 @@ class Verify(commands.Cog, name=COG_NAME):
     @commands.Cog.listener()
     @iam.hooks.pre(iam.hooks.is_human)
     @iam.hooks.pre(iam.hooks.was_verified_user)
-    @iam.hooks.post(iam.hooks.log_cmd_success)
+    @iam.hooks.pre(iam.hooks.log_on_mem_join_invoke("was verified"))
+    @iam.hooks.post(iam.hooks.log_on_mem_join_success("was verified"))
     async def on_member_join(self, member):
         """Handle member joining that was previously verified.
 
@@ -353,7 +354,8 @@ class Verify(commands.Cog, name=COG_NAME):
     @iam.hooks.pre(iam.hooks.in_dm_channel)
     @iam.hooks.pre(iam.hooks.is_guild_member)
     @iam.hooks.pre(iam.hooks.is_unverified_user)
-    @iam.hooks.post(iam.hooks.log_cmd_success)
+    @iam.hooks.pre(iam.hooks.log_on_msg_invoke("verifying"))
+    @iam.hooks.post(iam.hooks.log_on_msg_success("verifying"))
     async def on_message(self, message):
         """Handle DM received by unverified member.
 
@@ -394,9 +396,11 @@ class Verify(commands.Cog, name=COG_NAME):
                 f"process. To restart, type `{PREFIX}restart`.")
             return
 
-        LOG.debug(f"Checking if member '{member}' is already verified...")        
+        LOG.debug(f"Checking if member '{member}' was already verified...")        
         try:
             if self.db.get_member_data(member.id)[MemberKey.ID_VER]:
+                LOG.info(f"Member {member} was already verified. "
+                    "Granting rank...")
                 await self.__proc_grant_rank(member)
                 return
         except MemberNotFound:

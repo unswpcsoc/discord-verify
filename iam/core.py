@@ -119,6 +119,8 @@ class Core(commands.Cog, name=COG_NAME):
         help="Display this help dialogue.",
         usage=""
     )
+    @iam.hooks.pre(iam.hooks.log_cmd_attempt)
+    @iam.hooks.pre(iam.hooks.is_admin_user)
     @iam.hooks.pre(iam.hooks.log_cmd_invoke)
     @iam.hooks.post(iam.hooks.log_cmd_success)
     async def cmd_help(self, ctx, *query):

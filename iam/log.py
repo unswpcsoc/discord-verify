@@ -25,6 +25,8 @@ SOFTWARE.
 
 import logging
 from time import time, localtime, strftime
+from discord import Message, Member
+from discord.ext.commands import Context
 
 CONSOLE_LOG_LVL = logging.INFO
 """Console logging level."""
@@ -76,15 +78,73 @@ def new_logger(name):
 
     return logger
 
+def log_event(cog, object, level, meta):
+    """Logs an event and information about its invocation.
+
+    Cog must have log as an instance variable.
+
+    Args:
+        cog: Cog attached to event invocation.
+        object: Object attached to event invocation.
+        level: Logging level to log at.
+        meta: String representing info about event.
+    """
+    object_dict = OBJECT_TO_DICT[type(object)](object)
+    cog.log.log(level, f"{meta} - {type(object).__name__}: {str(object_dict)}")
+
 def context_to_dict(ctx):
+    """Convert Context object into dict containing their info.
+
+    Args:
+        ctx: Context object to be converted.
+
+    Returns:
+        Dict containing information about ctx.
+    """
     return {
         "content": ctx.message.content,
         "user": ctx.author.id,
-        "guild": ctx.guild.id if ctx.guild is not None else None,
         "channel": ctx.channel.id,
+        "guild": ctx.guild.id if ctx.guild is not None else None,
         "message_id": ctx.message.id
     }
 
-def log_context(ctx, level, msg):
-    out = context_to_dict(ctx)
-    ctx.cog.log.log(level, f"{msg}, context: {str(out)}")
+def message_to_dict(message):
+    """Convert Message object into dict containing their info.
+
+    Args:
+        message: Message object to be converted.
+
+    Returns:
+        Dict containing information about message.
+    """
+    guild = message.guild
+    return {
+        "content": message.content,
+        "id": message.id,
+        "user": message.author.id,
+        "channel": message.channel.id,
+        "guild": guild.id if guild is not None else None
+    }
+
+def member_to_dict(member):
+    """Convert Member object into dict containing their info.
+
+    Args:
+        member: Member object to be converted.
+
+    Returns:
+        Dict containing information about member.
+    """
+    return {
+        "handle": f"{member.name}#{member.discriminator}",
+        "id": member.id,
+        "guild": member.guild.id
+    }
+
+OBJECT_TO_DICT = {
+    Context: context_to_dict,
+    Message: message_to_dict,
+    Member: message_to_dict,
+}
+"""Maps types to dict converter functions."""

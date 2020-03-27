@@ -26,9 +26,9 @@ SOFTWARE.
 from logging import DEBUG, INFO
 from functools import wraps
 from inspect import iscoroutinefunction
-from discord import Message
+from discord.ext.commands import Context
 
-from iam.log import log_context
+from iam.log import log_event
 from iam.config import (
     PREFIX, SERVER_ID, VER_ROLE, ALLOW_CHANNELS, ADMIN_CHANNEL, ADMIN_ROLES
 )
@@ -85,16 +85,17 @@ def pre(action, error=False):
     """
     def decorator(func):
         @wraps(func)
-        async def wrapper(cog, ctx, *args):
+        async def wrapper(cog, *args):
             try:
-                await make_coro(action)(ctx)
+                await make_coro(action)(cog, *args)
             except CheckFailed as err:
-                if not isinstance(ctx, Message):
-                    log_context(ctx, DEBUG, f"failed check {action.__name__}")
+                if isinstance(args[0], Context):
+                    log_event(cog, args[0], DEBUG, "failed check "
+                        f"{action.__name__}")
                     if error:
                         raise err
                 return
-            await func(cog, ctx, *args)
+            await func(cog, *args)
         return wrapper
     return decorator
 
@@ -109,45 +110,93 @@ def post(action, error=False):
     """
     def decorator(func):
         @wraps(func)
-        async def wrapper(cog, ctx, *args):
-            await func(cog, ctx, *args)
+        async def wrapper(cog, *args):
+            await func(cog, *args)
             try:
-                await make_coro(action)(ctx)
+                await make_coro(action)(cog, *args)
             except CheckFailed as err:
-                log_context(ctx, DEBUG, f"failed check {action.__name__}")
-                if error:
-                    raise err
+                if isinstance(args[0], Context):
+                    log_event(cog, args[0], DEBUG, "failed check "
+                        f"{action.__name__}")
+                    if error:
+                        raise err
+                return
         return wrapper
     return decorator
 
-def log_cmd_attempt(ctx):
+def log_cmd_attempt(cog, ctx, *_):
     """Logs a command invoke attempt.
 
     Args:
+        cog: Cog associated with command invocation.
         ctx: Context object associated with command invocation. Associated cog
              must have log as an instance variable.
     """
-    log_context(ctx, DEBUG, "attempt command invoke")
+    log_event(cog, ctx, DEBUG, "attempt command invoke")
 
-def log_cmd_invoke(ctx):
+def log_cmd_invoke(cog, ctx, *_):
     """Logs a command invoke.
 
     Args:
+        cog: Cog associated with command invocation.
         ctx: Context object associated with command invocation. Associated cog
              must have log as an instance variable.
     """
-    log_context(ctx, INFO, "command invoke")
+    log_event(cog, ctx, INFO, "command invoke")
 
-def log_cmd_success(ctx):
-    """Logs a successful command execution.
+def log_cmd_success(cog, ctx, *_):
+    """Logs a successful command handler execution.
 
     Args:
+        cog: Cog associated with command invocation.
         ctx: Context object associated with command invocation. Associated cog
              must have log as an instance variable.
     """
-    log_context(ctx, DEBUG, "successful command execution")
+    log_event(cog, ctx, DEBUG, "successful command execution")
 
-def is_verified_user(ctx):
+def log_on_msg_invoke(meta):
+    """Logs an on_message invoke.
+
+    Args:
+        meta: String representing info about handler attached to this event.
+    """
+    def wrapper(cog, message, *_):
+        log_event(cog, message, INFO, f"on_message invoke: '{meta}'")
+    return wrapper
+
+def log_on_msg_success(meta):
+    """Logs a successful on_message handler execution.
+
+    Args:
+        meta: String representing info about handler attached to this event.
+    """
+    def wrapper(cog, message, *_):
+        log_event(cog, message, DEBUG, f"successful on_message execution: "
+            f"'{meta}'")
+    return wrapper
+
+def log_on_mem_join_invoke(meta):
+    """Logs an on_member_join invoke.
+
+    Args:
+        meta: String representing info about handler attached to this event.
+    """
+    def wrapper(cog, member, *_):
+        log_event(cog, member, INFO, f"on_member_join invoke: '{meta}'")
+    return wrapper
+
+def log_on_mem_join_success(meta):
+    """Logs a successful on_member_join handler execution.
+
+    Args:
+        meta: String representing info about handler attached to this event.
+    """
+    def wrapper(cog, member, *_):
+        log_event(cog, member, DEBUG, f"successful on_member_join execution: "
+            f"'{meta}'")
+    return wrapper
+
+def is_verified_user(cog, object, *_):
     """Raises exception if invoker does not have verified role.
     
     Verified role defined in config.
@@ -155,16 +204,17 @@ def is_verified_user(ctx):
     Associated cog must have bot as instance variable.
 
     Args:
-        ctx: Context object.
+        cog: Cog assicated with command invocation.
+        object: Object associated with command invocation.
 
     Raises:
         CheckFailed: If invoker does not have verified role.
     """
-    member = get_member(ctx)
+    member = get_member(cog.bot, object.author)
     if member is None or VER_ROLE not in get_role_ids(member):
-        raise CheckFailed(ctx, "You must be verified to do that.")
+        raise CheckFailed(object, "You must be verified to do that.")
 
-def was_verified_user(ctx):
+def was_verified_user(cog, object, *_):
     """Raises exception if invoker was never verified in past.
     
     Verified in past defined as either verified in the database or currently
@@ -173,19 +223,20 @@ def was_verified_user(ctx):
     Associated cog must have bot and db as instance variables.
 
     Args:
-        ctx: Context object.
+        cog: Cog associated with command invocation.
+        object: Object associated with command invocation.
 
     Raises:
         CheckFailed: If invoker was never verified in past.
     """
-    member = get_member(ctx)
+    member = get_member(cog.bot, object.author)
     if member is not None and VER_ROLE in get_role_ids(member):
         return
-    member_info = ctx.cog.db.get_member_data(ctx.author.id)
+    member_info = cog.db.get_member_data(object.author.id)
     if member_info == None or not member_info["verified"]:
-        raise CheckFailed(ctx, "You must be verified to do that.")
+        raise CheckFailed(object, "You must be verified to do that.")
 
-def is_unverified_user(ctx):
+def is_unverified_user(cog, object, *_):
     """Raises exception if invoker has verified role.
 
     Verified role defined in config.
@@ -193,16 +244,17 @@ def is_unverified_user(ctx):
     Associated cog must have bot as instance variable.
 
     Args:
-        ctx: Context object.
+        cog: Cog associated with command invocation.
+        object: Object associated with command invocation.
 
     Raises:
         CheckFailed: If invoker has verified role.
     """
-    member = get_member(ctx)
+    member = get_member(cog.bot, object.author)
     if member is not None and VER_ROLE in get_role_ids(member):
-        raise CheckFailed(ctx, "You are already verified.")
+        raise CheckFailed(object, "You are already verified.")
 
-def never_verified_user(ctx):
+def never_verified_user(cog, object, *_):
     """Raise exception if invoker was verified in past.
     
     Verified in past defined as either verified in the database or currently
@@ -211,19 +263,20 @@ def never_verified_user(ctx):
     Associated cog must have bot and db as instance variables.
 
     Args:
-        ctx: Context object.
+        cog: Cog associated with command invocation.
+        object: Object associated with command invocation.
 
     Raises:
         CheckFailed: If invoker was verified in past.
     """
-    member = get_member(ctx)
+    member = get_member(cog.bot, object.author)
     if member is None or VER_ROLE not in get_role_ids(member):
-        member_info = ctx.cog.db.get_member_data(ctx.author.id)
+        member_info = cog.db.get_member_data(object.author.id)
         if member_info == None or not member_info["verified"]:
             return True
-    raise CheckFailed(ctx, "You are already verified.")
+    raise CheckFailed(object, "You are already verified.")
 
-def is_admin_user(ctx):
+def is_admin_user(cog, object, *_):
     """Raise exception if invoker does not have at least one admin role.
 
     Admin roles defined in config.
@@ -231,16 +284,17 @@ def is_admin_user(ctx):
     Associated cog must have bot as instance variable.
 
     Args:
-        ctx: Context object.
+        cog: Cog associated with command invocation.
+        object: Object associated with command invocation.
 
     Raises:
         CheckFailed: If invoker does not have at least one admin role.
     """
-    member = get_member(ctx)
+    member = get_member(cog.bot, object.author)
     if set(ADMIN_ROLES).isdisjoint(get_role_ids(member)):
-        raise CheckFailed(ctx, "You are not authorised to do that.")
+        raise CheckFailed(object, "You are not authorised to do that.")
 
-def is_guild_member(ctx):
+def is_guild_member(cog, object, *_):
     """Raise exception if invoker is not member of guild.
     
     Guild defined in config.
@@ -248,70 +302,75 @@ def is_guild_member(ctx):
     Associated cog must have bot as instance variable.
 
     Args:
-        ctx: Context object.
+        cog: Cog associated with command invocation.
+        object: Object associated with command invocation.
 
     Raises:
         CheckFailed: If invoker is not member of guild.
     """
-    if get_member(ctx) is None:
-        raise CheckFailed(ctx, "You must be a member of the server "
+    if get_member(cog.bot, object.author) is None:
+        raise CheckFailed(object, "You must be a member of the server "
             "to do that.")
 
-def in_allowed_channel(ctx):
+def in_allowed_channel(cog, object, *_):
     """Raise exception if not invoked in an allowed channel.
     
     Allowed channels defined in config.
 
     Args:
-        ctx: Context object.
+        cog: Cog associated with command invocation.
+        object: Object associated with command invocation.
 
     Raises:
         CheckFailed: If not invoked in an allowed channel.
     """
-    if ctx.channel.id not in ALLOW_CHANNELS:
-        raise CheckFailed(ctx, "You cannot do that in this channel.")
+    if object.channel.id not in ALLOW_CHANNELS:
+        raise CheckFailed(object, "You cannot do that in this channel.")
 
-def in_admin_channel(ctx):
+def in_admin_channel(cog, object, *_):
     """Raise exception if not invoked in admin channel.
     
     Admin channel defined in config.
 
     Args:
-        ctx: Context object.
+        cog: Cog associated with command invocation.
+        object: Object associated with command invocation.
 
     Raises:
         CheckFailed: If not invoked in admin channel.
     """
-    if ctx.channel.id != ADMIN_CHANNEL:
-        raise CheckFailed(ctx, "You must be in the admin channel to do that.")
+    if object.channel.id != ADMIN_CHANNEL:
+        raise CheckFailed(object, "You must be in the admin channel to do that.")
 
-def in_dm_channel(ctx):
+def in_dm_channel(cog, object, *_):
     """Raise exception if not invoked in DM channel.
 
     Args:
-        ctx: Context object.
+        cog: Cog associated with command invocation.
+        object: Object associated with command invocation.
 
     Raises:
         CheckFailed: If not invoked in DM channel.
     """
-    if ctx.guild is not None:
-        raise CheckFailed(ctx, "You must be in a DM channel to do that.")
+    if object.guild is not None:
+        raise CheckFailed(object, "You must be in a DM channel to do that.")
 
-def is_human(ctx):
+def is_human(cog, object, *_):
     """Raise exception if invoked by bot.
     
     Prevents bot from handling events triggered by bots, including itself.
 
     Args:
-        ctx: Context object.
+        cog: Cog associated with command invocation.
+        object: Object associated with command invocation.
 
     Raises:
         CheckFailed: If invoked by bot.
     """
-    if ctx.author.bot:
-        raise CheckFailed(ctx, "You are not human.")
+    if object.author.bot:
+        raise CheckFailed(object, "You are not human.")
 
-def is_not_command(ctx):
+def is_not_command(cog, message, *_):
     """Raise exception if message is not command.
 
     Prevents bot from handling on_message events generated by commands.
@@ -319,24 +378,28 @@ def is_not_command(ctx):
     Commands defined as starting with command prefix defined in config.
 
     Args:
-        ctx: Context object.
+        cog: Cog associated with event.
+        message: Message object associated with event.
 
     Raises:
         CheckFailed: If message is not command.
     """
-    if ctx.content.startswith(PREFIX):
-        raise CheckFailed(ctx, "That is not a command.")
+    if message.content.startswith(PREFIX):
+        raise CheckFailed(message, "That is not a command.")
 
-def get_member(ctx):
-    """Get member associated with context.
+def get_member(bot, user):
+    """Get member of guild given User object.
     
+    Guild defined in config.
+
     Args:
-        ctx: Context object.
+        bot: Bot object, must be member of guild.
+        user: User object to search for.
 
     Returns:
         The Member object associated with given context.
     """
-    return ctx.cog.bot.get_guild(SERVER_ID).get_member(ctx.author.id)
+    return bot.get_guild(SERVER_ID).get_member(user.id)
 
 def get_role_ids(member):
     """Get list of IDs of all roles member has.
