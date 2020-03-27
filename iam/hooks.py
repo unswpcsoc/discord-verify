@@ -23,10 +23,12 @@ SOFTWARE.
 
 """Handle command permissions."""
 
+from logging import DEBUG, INFO
 from functools import wraps
 from inspect import iscoroutinefunction
 from discord import Message
 
+from iam.log import log_context
 from iam.config import (
     PREFIX, SERVER_ID, VER_ROLE, ALLOW_CHANNELS, ADMIN_CHANNEL, ADMIN_ROLES
 )
@@ -88,9 +90,7 @@ def pre(action, error=False):
                 await make_coro(action)(ctx)
             except CheckFailed as err:
                 if not isinstance(ctx, Message):
-                    cog.log.debug(f"User '{ctx.author.id}' failed check "
-                        f"{action.__name__} in channel '{ctx.channel.id}' "
-                        f"during command invocation: '{ctx.message.content}'")
+                    log_context(ctx, DEBUG, f"failed check {action.__name__}")
                     if error:
                         raise err
                 return
@@ -114,9 +114,7 @@ def post(action, error=False):
             try:
                 await make_coro(action)(ctx)
             except CheckFailed as err:
-                cog.log.debug(f"User '{ctx.author.id}' failed check "
-                    f"{action.__name__} in channel '{ctx.channel.id}' "
-                    f"during command invocation: '{ctx.message.content}'")
+                log_context(ctx, DEBUG, f"failed check {action.__name__}")
                 if error:
                     raise err
         return wrapper
@@ -129,18 +127,25 @@ def log_cmd_attempt(ctx):
         ctx: Context object associated with command invocation. Associated cog
              must have log as an instance variable.
     """
-    ctx.cog.log.debug(f"Attempted command invoke '{ctx.message.content}' "
-        f"by user '{ctx.author.id}'")
+    log_context(ctx, DEBUG, "attempt command invoke")
 
-def log_cmd_success(ctx):
-    """Logs a successful command invoke.
+def log_cmd_invoke(ctx):
+    """Logs a command invoke.
 
     Args:
         ctx: Context object associated with command invocation. Associated cog
              must have log as an instance variable.
     """
-    ctx.cog.log.info(f"Successful command invoke '{ctx.message.content}' "
-        f"by user '{ctx.author.id}'")
+    log_context(ctx, INFO, "command invoke")
+
+def log_cmd_success(ctx):
+    """Logs a successful command execution.
+
+    Args:
+        ctx: Context object associated with command invocation. Associated cog
+             must have log as an instance variable.
+    """
+    log_context(ctx, DEBUG, "successful command execution")
 
 def is_verified_user(ctx):
     """Raises exception if invoker does not have verified role.

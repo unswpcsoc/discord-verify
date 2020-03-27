@@ -196,7 +196,7 @@ class Verify(commands.Cog, name=COG_NAME):
     @iam.hooks.pre(iam.hooks.log_cmd_attempt)
     @iam.hooks.pre(iam.hooks.in_allowed_channel, error=True)
     @iam.hooks.pre(iam.hooks.is_unverified_user, error=True)
-    @iam.hooks.pre(iam.hooks.log_cmd_success)
+    @iam.hooks.pre(iam.hooks.log_cmd_invoke)
     async def cmd_verify(self, ctx):
         """Handle verify command.
 
@@ -216,7 +216,8 @@ class Verify(commands.Cog, name=COG_NAME):
     @iam.hooks.pre(iam.hooks.log_cmd_attempt)
     @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
     @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
-    @iam.hooks.pre(iam.hooks.log_cmd_success)
+    @iam.hooks.pre(iam.hooks.log_cmd_invoke)
+    @iam.hooks.post(iam.hooks.log_cmd_success)
     async def cmd_verify_approve(self, ctx, member_id: int):
         """Handle verify approve command.
 
@@ -237,7 +238,8 @@ class Verify(commands.Cog, name=COG_NAME):
     @iam.hooks.pre(iam.hooks.log_cmd_attempt)
     @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
     @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
-    @iam.hooks.pre(iam.hooks.log_cmd_success)
+    @iam.hooks.pre(iam.hooks.log_cmd_invoke)
+    @iam.hooks.post(iam.hooks.log_cmd_success)
     async def cmd_verify_reject(self, ctx, member_id: int, *, reason: str):
         """Handle verify reject command.
 
@@ -260,7 +262,8 @@ class Verify(commands.Cog, name=COG_NAME):
     @iam.hooks.pre(iam.hooks.log_cmd_attempt)
     @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
     @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
-    @iam.hooks.pre(iam.hooks.log_cmd_success)
+    @iam.hooks.pre(iam.hooks.log_cmd_invoke)
+    @iam.hooks.post(iam.hooks.log_cmd_success)
     async def cmd_verify_pending(self, ctx):
         """Handle verify pending command.
 
@@ -281,7 +284,8 @@ class Verify(commands.Cog, name=COG_NAME):
     @iam.hooks.pre(iam.hooks.log_cmd_attempt)
     @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
     @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
-    @iam.hooks.pre(iam.hooks.log_cmd_success)
+    @iam.hooks.pre(iam.hooks.log_cmd_invoke)
+    @iam.hooks.post(iam.hooks.log_cmd_success)
     async def cmd_verify_check(self, ctx, member_id: int):
         """Handle verify check command.
 
@@ -298,7 +302,8 @@ class Verify(commands.Cog, name=COG_NAME):
     @iam.hooks.pre(iam.hooks.in_dm_channel)
     @iam.hooks.pre(iam.hooks.is_guild_member, error=True)
     @iam.hooks.pre(iam.hooks.is_unverified_user)
-    @iam.hooks.pre(iam.hooks.log_cmd_success)
+    @iam.hooks.pre(iam.hooks.log_cmd_invoke)
+    @iam.hooks.post(iam.hooks.log_cmd_success)
     async def cmd_restart(self, ctx):
         """Handle restart command.
 
@@ -315,7 +320,8 @@ class Verify(commands.Cog, name=COG_NAME):
     @iam.hooks.pre(iam.hooks.in_dm_channel)
     @iam.hooks.pre(iam.hooks.is_guild_member, error=True)
     @iam.hooks.pre(iam.hooks.is_unverified_user)
-    @iam.hooks.pre(iam.hooks.log_cmd_success)
+    @iam.hooks.pre(iam.hooks.log_cmd_invoke)
+    @iam.hooks.post(iam.hooks.log_cmd_success)
     async def cmd_resend(self, ctx):
         """Handle resend command.
 
@@ -330,6 +336,7 @@ class Verify(commands.Cog, name=COG_NAME):
     @commands.Cog.listener()
     @iam.hooks.pre(iam.hooks.is_human)
     @iam.hooks.pre(iam.hooks.was_verified_user)
+    @iam.hooks.post(iam.hooks.log_cmd_success)
     async def on_member_join(self, member):
         """Handle member joining that was previously verified.
 
@@ -346,6 +353,7 @@ class Verify(commands.Cog, name=COG_NAME):
     @iam.hooks.pre(iam.hooks.in_dm_channel)
     @iam.hooks.pre(iam.hooks.is_guild_member)
     @iam.hooks.pre(iam.hooks.is_unverified_user)
+    @iam.hooks.post(iam.hooks.log_cmd_success)
     async def on_message(self, message):
         """Handle DM received by unverified member.
 

@@ -119,7 +119,8 @@ class Core(commands.Cog, name=COG_NAME):
         help="Display this help dialogue.",
         usage=""
     )
-    @iam.hooks.pre(iam.hooks.log_cmd_success)
+    @iam.hooks.pre(iam.hooks.log_cmd_invoke)
+    @iam.hooks.post(iam.hooks.log_cmd_success)
     async def cmd_help(self, ctx, *query):
         """Handle help command.
 
@@ -176,7 +177,8 @@ class Core(commands.Cog, name=COG_NAME):
     @iam.hooks.pre(iam.hooks.log_cmd_attempt)
     @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
     @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
-    @iam.hooks.pre(iam.hooks.log_cmd_success)
+    @iam.hooks.pre(iam.hooks.log_cmd_invoke)
+    @iam.hooks.post(iam.hooks.log_cmd_success)
     async def cmd_exit(self, ctx):
         """Handle exit command.
         

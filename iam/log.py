@@ -75,3 +75,16 @@ def new_logger(name):
     logger.addHandler(f_handler)
 
     return logger
+
+def context_to_dict(ctx):
+    return {
+        "content": ctx.message.content,
+        "user": ctx.author.id,
+        "guild": ctx.guild.id if ctx.guild is not None else None,
+        "channel": ctx.channel.id,
+        "message_id": ctx.message.id
+    }
+
+def log_context(ctx, level, msg):
+    out = context_to_dict(ctx)
+    ctx.cog.log.log(level, f"{msg}, context: {str(out)}")
