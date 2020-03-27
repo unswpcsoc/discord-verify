@@ -30,9 +30,9 @@ from discord.ext import commands
 from discord import NotFound
 
 from iam.log import new_logger
-import iam.perms
+import iam.hooks
 from iam.db import MemberKey, SecretID, MemberNotFound
-from iam.mail import MailError
+from iam.mail import MailError, is_valid_email
 from iam.config import PREFIX, SERVER_ID, VER_ROLE, ADMIN_CHANNEL
 
 LOG = None
@@ -193,8 +193,10 @@ class Verify(commands.Cog, name=COG_NAME):
         if ctx.invoked_subcommand is None:
             await self.cmd_verify(ctx)
 
-    @iam.perms.in_allowed_channel(error=True)
-    @iam.perms.is_unverified_user(error=True)
+    @iam.hooks.pre(iam.hooks.log_cmd_attempt)
+    @iam.hooks.pre(iam.hooks.in_allowed_channel, error=True)
+    @iam.hooks.pre(iam.hooks.is_unverified_user, error=True)
+    @iam.hooks.pre(iam.hooks.log_cmd_success)
     async def cmd_verify(self, ctx):
         """Handle verify command.
 
@@ -211,8 +213,10 @@ class Verify(commands.Cog, name=COG_NAME):
         help="Verify a member awaiting exec approval.",
         usage="(Discord ID) __member__"
     )
-    @iam.perms.in_admin_channel(error=True)
-    @iam.perms.is_admin_user(error=True)
+    @iam.hooks.pre(iam.hooks.log_cmd_attempt)
+    @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
+    @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
+    @iam.hooks.pre(iam.hooks.log_cmd_success)
     async def cmd_verify_approve(self, ctx, member_id: int):
         """Handle verify approve command.
 
@@ -230,8 +234,10 @@ class Verify(commands.Cog, name=COG_NAME):
         help="Reject a member awaiting exec approval.",
         usage="(Discord ID) __member__ (multiple words) __reason__"
     )
-    @iam.perms.in_admin_channel(error=True)
-    @iam.perms.is_admin_user(error=True)
+    @iam.hooks.pre(iam.hooks.log_cmd_attempt)
+    @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
+    @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
+    @iam.hooks.pre(iam.hooks.log_cmd_success)
     async def cmd_verify_reject(self, ctx, member_id: int, *, reason: str):
         """Handle verify reject command.
 
@@ -251,8 +257,10 @@ class Verify(commands.Cog, name=COG_NAME):
         help="Display list of members awaiting approval for verification.",
         usage=""
     )
-    @iam.perms.in_admin_channel(error=True)
-    @iam.perms.is_admin_user(error=True)
+    @iam.hooks.pre(iam.hooks.log_cmd_attempt)
+    @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
+    @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
+    @iam.hooks.pre(iam.hooks.log_cmd_success)
     async def cmd_verify_pending(self, ctx):
         """Handle verify pending command.
 
@@ -270,8 +278,10 @@ class Verify(commands.Cog, name=COG_NAME):
         help="Retrieve stored photo of ID from member awaiting approval.",
         usage="(Discord ID) __member__"
     )
-    @iam.perms.in_admin_channel(error=True)
-    @iam.perms.is_admin_user(error=True)
+    @iam.hooks.pre(iam.hooks.log_cmd_attempt)
+    @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
+    @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
+    @iam.hooks.pre(iam.hooks.log_cmd_success)
     async def cmd_verify_check(self, ctx, member_id: int):
         """Handle verify check command.
 
@@ -284,9 +294,11 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_resend_id(member)
 
     @commands.command(name="restart", hidden=True)
-    @iam.perms.in_dm_channel()
-    @iam.perms.is_guild_member(error=True)
-    @iam.perms.is_unverified_user()
+    @iam.hooks.pre(iam.hooks.log_cmd_attempt)
+    @iam.hooks.pre(iam.hooks.in_dm_channel)
+    @iam.hooks.pre(iam.hooks.is_guild_member, error=True)
+    @iam.hooks.pre(iam.hooks.is_unverified_user)
+    @iam.hooks.pre(iam.hooks.log_cmd_success)
     async def cmd_restart(self, ctx):
         """Handle restart command.
 
@@ -299,9 +311,11 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_restart(ctx.author)
 
     @commands.command(name="resend", hidden=True)
-    @iam.perms.in_dm_channel()
-    @iam.perms.is_guild_member(error=True)
-    @iam.perms.is_unverified_user()
+    @iam.hooks.pre(iam.hooks.log_cmd_attempt)
+    @iam.hooks.pre(iam.hooks.in_dm_channel)
+    @iam.hooks.pre(iam.hooks.is_guild_member, error=True)
+    @iam.hooks.pre(iam.hooks.is_unverified_user)
+    @iam.hooks.pre(iam.hooks.log_cmd_success)
     async def cmd_resend(self, ctx):
         """Handle resend command.
 
@@ -314,8 +328,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_resend_email(self.guild.get_member(ctx.author.id))
 
     @commands.Cog.listener()
-    @iam.perms.is_human()
-    @iam.perms.was_verified_user()
+    @iam.hooks.pre(iam.hooks.is_human)
+    @iam.hooks.pre(iam.hooks.was_verified_user)
     async def on_member_join(self, member):
         """Handle member joining that was previously verified.
 
@@ -327,11 +341,11 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_grant_rank(member)
 
     @commands.Cog.listener()
-    @iam.perms.is_not_command()
-    @iam.perms.is_human()
-    @iam.perms.in_dm_channel()
-    @iam.perms.is_guild_member()
-    @iam.perms.is_unverified_user()
+    @iam.hooks.pre(iam.hooks.is_not_command)
+    @iam.hooks.pre(iam.hooks.is_human)
+    @iam.hooks.pre(iam.hooks.in_dm_channel)
+    @iam.hooks.pre(iam.hooks.is_guild_member)
+    @iam.hooks.pre(iam.hooks.is_unverified_user)
     async def on_message(self, message):
         """Handle DM received by unverified member.
 
@@ -371,7 +385,8 @@ class Verify(commands.Cog, name=COG_NAME):
             await member.send("You are already undergoing the verification "
                 f"process. To restart, type `{PREFIX}restart`.")
             return
-        
+
+        LOG.debug(f"Checking if member '{member}' is already verified...")        
         try:
             if self.db.get_member_data(member.id)[MemberKey.ID_VER]:
                 await self.__proc_grant_rank(member)
@@ -491,12 +506,12 @@ class Verify(commands.Cog, name=COG_NAME):
                 "Please try again.")
         email = f"z{zid}@student.unsw.edu.au"
 
+        patch = {MemberKey.ZID: zid, MemberKey.EMAIL: email}
         async with member.typing():
-            patch = {MemberKey.ZID: zid, MemberKey.EMAIL: email}
             self.db.update_member_data(member.id, patch)
-            self.verifying[member.id].update(patch)
+        self.verifying[member.id].update(patch)
 
-            await self.__proc_send_email(member)
+        await self.__proc_send_email(member, email)
 
     @_next_state(State.AWAIT_EMAIL)
     async def __proc_request_email(self, member):
@@ -517,34 +532,39 @@ class Verify(commands.Cog, name=COG_NAME):
             message: Message object received from member.
         """
         email = message.content
+        if not is_valid_email(email):
+            await member.send("That is not a valid email address. "
+                "Please try again.")
+            return
 
-        async with member.typing():
-            patch = {MemberKey.EMAIL: email}
-            self.db.update_member_data(member.id, patch)
-            self.verifying[member.id].update(patch)
+        await self.__proc_send_email(member, email)
 
-            await self.__proc_send_email(member)
-
-    async def __proc_send_email(self, member):
+    async def __proc_send_email(self, member, email):
         """Send verification code to member's email address.
 
         If email sends successfully, proceed to request code from member.
 
         Args:
             member: Member object to send email to.
+            email: Member's email address.
         """
-        email = self.verifying[member.id][MemberKey.EMAIL]
         code = self.get_code(member)
 
         try:
-            self.mail.send_email(email, "Discord Verification", 
-                f"Your code is {code}")
-        except MailError:
-            print(f"Failed to send email to {email}")
+            async with member.typing():
+                self.mail.send_email(email, "Discord Verification", 
+                    f"Your code is {code}")
+        except MailError as err:
+            err.def_handler()
             await member.send("Oops! Something went wrong while attempting "
                 "to send you an email. Please ensure that your details have "
                 "been entered correctly.")
             return
+
+        patch = {MemberKey.EMAIL: email}
+        async with member.typing():
+            self.db.update_member_data(member.id, patch)
+        self.verifying[member.id].update(patch)
         
         await self.__proc_request_code(member)
 
@@ -570,23 +590,23 @@ class Verify(commands.Cog, name=COG_NAME):
             member: Member object that sent message.
             message: Message object received from member.
         """
-        async with member.typing():
-            received_code = message.content
-            expected_code = self.get_code(member)
-            if not hmac.compare_digest(received_code, expected_code):
-                await member.send("That was not the correct code. Please try "
-                    "again.\nYou can request another email by typing "
-                    f"`{PREFIX}resend`.")
-                return
+        received_code = message.content
+        expected_code = self.get_code(member)
+        if not hmac.compare_digest(received_code, expected_code):
+            await member.send("That was not the correct code. Please try "
+                "again.\nYou can request another email by typing "
+                f"`{PREFIX}resend`.")
+            return
 
-            patch = {MemberKey.EMAIL_VER: True}
+        patch = {MemberKey.EMAIL_VER: True}
+        async with member.typing():
             self.db.update_member_data(member.id, patch)
-            self.verifying[member.id].update(patch)
-            
-            if self.verifying[member.id][MemberKey.ZID] is None:
-                await self.__proc_request_id(member)
-            else:
-                await self.__proc_grant_rank(member)
+        self.verifying[member.id].update(patch)
+        
+        if self.verifying[member.id][MemberKey.ZID] is None:
+            await self.__proc_request_id(member)
+        else:
+            await self.__proc_grant_rank(member)
 
     async def __proc_resend_email(self, member):
         """Resend verification email to member's email address, if sent before.
@@ -597,7 +617,8 @@ class Verify(commands.Cog, name=COG_NAME):
         if member.id in self.verifying \
             and self.verifying[member.id][MemberKey.STATE] \
             == self.State.AWAIT_CODE:
-            await self.__proc_send_email(member)
+            email = self.verifying[member.id][MemberKey.EMAIL]
+            await self.__proc_send_email(member, email)
 
     @_next_state(State.AWAIT_ID)
     async def __proc_request_id(self, member):
@@ -623,8 +644,7 @@ class Verify(commands.Cog, name=COG_NAME):
             await member.send("No attachments received. Please try again.")
             return
         
-        async with member.typing():
-            await self.__proc_forward_id_admins(member, attachments)
+        await self.__proc_forward_id_admins(member, attachments)
 
     @_next_state(State.AWAIT_APPROVAL)
     async def __proc_forward_id_admins(self, member, attachments):
@@ -636,18 +656,22 @@ class Verify(commands.Cog, name=COG_NAME):
             member: Member object that sent attachments.
             attachments: List of Attachment objects received from member.
         """
-        files = [await a.to_file() for a in attachments]
         full_name = self.verifying[member.id][MemberKey.NAME]
-        message = await self.admin_channel.send("Received attachment(s) from "
-            f"{member.mention}. Please verify that name on ID is "
-            f"`{full_name}`, then type `{PREFIX}verify approve {member.id}` "
-            f"or `{PREFIX}verify reject {member.id} \"reason\"`.", files=files)
+        async with member.typing():
+            files = [await a.to_file() for a in attachments]
+            message = await self.admin_channel.send("Received attachment(s) "
+                f"from {member.mention}. Please verify that name on ID is "
+                f"`{full_name}`, then type `{PREFIX}verify approve "
+                f"{member.id}` or `{PREFIX}verify reject {member.id} "
+                "\"reason\"`.", files=files)
+
+        patch = {MemberKey.ID_MESSAGE: message.id}
+        async with member.typing():
+            self.db.update_member_data(member.id, patch)
+        self.verifying[member.id].update(patch)
 
         await member.send("Your attachment(s) have been forwarded to the "
             "execs. Please wait.")
-        patch = {MemberKey.ID_MESSAGE: message.id}
-        self.db.update_member_data(member.id, patch)
-        self.verifying[member.id].update(patch)
 
     async def __state_await_approval(self, member, message):
         """Handle message received from member while awaiting exec approval.
@@ -735,12 +759,14 @@ class Verify(commands.Cog, name=COG_NAME):
             return
         attachments = message.attachments
 
-        files = [await a.to_file() for a in attachments]
-        full_name = self.verifying[member.id][MemberKey.NAME]
-        await self.admin_channel.send("Previously received attachment(s) from "
-            f"{member.mention}. Please verify that name on ID is "
-            f"`{full_name}`, then type `{PREFIX}verify approve {member.id}` "
-            f"or `{PREFIX}verify reject {member.id} \"reason\"`.", files=files)
+        async with self.admin_channel.typing():
+            files = [await a.to_file() for a in attachments]
+            full_name = self.verifying[member.id][MemberKey.NAME]
+            await self.admin_channel.send("Previously received attachment(s) "
+                f"from {member.mention}. Please verify that name on ID is "
+                f"`{full_name}`, then type `{PREFIX}verify approve "
+                f"{member.id}` or `{PREFIX}verify reject {member.id} "
+                "\"reason\"`.", files=files)
 
     async def __proc_grant_rank(self, member):
         """Grant verified rank to member and notify them and execs.
@@ -750,10 +776,17 @@ class Verify(commands.Cog, name=COG_NAME):
         Args:
             member: Member object to grant verified rank to.
         """
-        self.db.update_member_data(member.id, {MemberKey.ID_VER: True})
+        if member.id in self.verifying:
+            full_name = self.verifying[member.id][MemberKey.NAME]
+            self.db.update_member_data(member.id, {MemberKey.ID_VER: True})
+            del self.verifying[member.id]
+        else:
+            member_info = self.db.get_member_data(member.id)
+            full_name = member_info[MemberKey.NAME]
         await member.add_roles(self.guild.get_role(VER_ROLE))
         LOG.info(f"Granted verified rank to member '{member.id}'")
         if member.id in self.verifying:
             del self.verifying[member.id]
         await member.send("You are now verified. Welcome to the server!")
-        await self.admin_channel.send(f"{member.mention} is now verified.")
+        await self.admin_channel.send(f"{member.mention} ({full_name}) is now "
+            "verified.")

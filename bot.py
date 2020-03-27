@@ -35,6 +35,7 @@ LOG = None
 
 def main():
     global LOG
+    new_logger("discord")
     LOG = new_logger(__name__)
     sys.excepthook = exception_handler
 

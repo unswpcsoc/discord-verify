@@ -27,17 +27,36 @@ import logging
 from time import time, localtime, strftime
 
 CONSOLE_LOG_LVL = logging.INFO
+"""Console logging level."""
 CONSOLE_LOG_FMT = "[%(asctime)s] [%(module)s/%(levelname)s]: %(message)s"
+"""Console logging format."""
 CONSOLE_TIME_FMT = "%H:%M:%S"
+"""Console log timestamp format."""
 
 FILE_LOG_LVL = logging.DEBUG
-FILE_LOG_FMT = "[%(asctime)s] [%(module)s/%(levelname)s]: %(message)s"
+"""File logging level."""
+FILE_LOG_FMT = ("[%(asctime)s] [%(module)s/%(funcName)s/%(levelname)s]: "
+                "%(message)s")
+"""File logging format."""
 FILE_TIME_FMT = "%Y-%m-%d %H:%M:%S"
+"""File log timestamp format."""
 
 FILENAME_TIME_FMT = "%Y-%m-%d_%H-%M-%S"
+"""Log filename timestamp format."""
 FILENAME = f"logs/{strftime(FILENAME_TIME_FMT, localtime(time()))}.log"
+"""Log filename format."""
 
 def new_logger(name):
+    """Create a new logger with the given name.
+
+    Initialise it with constants set at the top of log.py.
+
+    Args:
+        name: String representing name of the logger to be created.
+
+    Returns:
+        The new logger.
+    """
     import logging
 
     logger = logging.getLogger(name)

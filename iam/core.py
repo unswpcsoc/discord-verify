@@ -28,7 +28,7 @@ from discord.ext import commands
 
 from iam.log import new_logger
 from iam.config import PREFIX
-import iam.perms
+import iam.hooks
 
 LOG = None
 """Logger for this module."""
@@ -102,7 +102,7 @@ class Core(commands.Cog, name=COG_NAME):
             Any exception that is not handled by the above.
         """
         if isinstance(error, commands.MissingRequiredArgument):
-            await self.show_help_single(ctx, ctx.command.qualified_name)
+            await self.show_help_single(ctx, ctx.invoked_with)
             return
 
         if hasattr(error, "original"):
@@ -119,6 +119,7 @@ class Core(commands.Cog, name=COG_NAME):
         help="Display this help dialogue.",
         usage=""
     )
+    @iam.hooks.pre(iam.hooks.log_cmd_success)
     async def cmd_help(self, ctx, *query):
         """Handle help command.
 
@@ -172,8 +173,10 @@ class Core(commands.Cog, name=COG_NAME):
         help="Gracefully log out and shut down the bot.",
         usage=""
     )
-    @iam.perms.in_admin_channel(error=True)
-    @iam.perms.is_admin_user(error=True)
+    @iam.hooks.pre(iam.hooks.log_cmd_attempt)
+    @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
+    @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
+    @iam.hooks.pre(iam.hooks.log_cmd_success)
     async def cmd_exit(self, ctx):
         """Handle exit command.
         
@@ -182,10 +185,10 @@ class Core(commands.Cog, name=COG_NAME):
         Args:
             ctx: Context object associated with command invocation.
         """
+        LOG.info("Shutting down...")
         await ctx.send("I am shutting down...")
         LOG.debug("Logging out of Discord...")
         await self.bot.logout()
-        LOG.info("Logged out of Discord. Exiting...")
 
 def make_help_text(cmd):
     """Generate help text for command.

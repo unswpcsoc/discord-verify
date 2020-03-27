@@ -136,12 +136,10 @@ class Database(commands.Cog):
         Raises:
             MemberNotFound: If member does not exist in database.
         """
-        LOG.debug(f"Retrieving member '{id}' from database...")
+        LOG.debug(f"Attempting to get member '{id}' from database...")
         data = self._get_member_doc(id).get().to_dict()
         if data is None:
-            LOG.warning(f"Failed to retrieve member '{id}' from database - "
-                "they do not exist")
-            raise MemberNotFound
+            raise MemberNotFound(id, "get_member_data")
         LOG.debug(f"Retrieved member '{id}' from database")
         return data
 
@@ -174,7 +172,7 @@ class Database(commands.Cog):
         self._get_member_doc(id).set(info)
         LOG.debug(f"Wrote entry for member '{id}' in database: {info}")
 
-    def update_member_data(self, id, info, must_exist=True):
+    def update_member_data(self, id, patch, must_exist=True):
         """Update entry for member in database.
         
         Will only modify given keys and values. If key does not already exist,
@@ -184,7 +182,7 @@ class Database(commands.Cog):
 
         Args:
             id: Discord ID of member.
-            info: Dict of keys and values to write.
+            patch: Dict of keys and values to write.
             must_exist: Boolean for if member must exist in database. If False,
                         will create new entry if they do not.
 
@@ -192,13 +190,15 @@ class Database(commands.Cog):
             MemberNotFound: If member does not exist in database and
                             must_exist == True.
         """
+        LOG.debug(f"Attempting to update member '{id} in database. "
+            f"Patch: {patch}...")
         try:
-            self._get_member_doc(id).update(info)
-            LOG.debug(f"Updated member '{id}' in database. Patch: {info}")
+            self._get_member_doc(id).update(patch)
+            LOG.debug(f"Updated member '{id}' in database. Patch: {patch}")
         except google.cloud.exceptions.NotFound:
             LOG.warning(f"Failed to update member '{id}' entry in database - "
                 "they do not exist")
-            raise MemberNotFound
+            raise MemberNotFound(id, "update_member_data")
 
     def delete_member_data(self, id, must_exist=True):
         """Delete entry for member in database.
@@ -214,12 +214,12 @@ class Database(commands.Cog):
             MemberNotFound: If member does not exist in database and
                             must_exist == True.
         """
-        LOG.debug(f"Deleting member '{id}' from database...")
+        LOG.debug(f"Attempting to delete member '{id}' from database...")
         doc = self._get_member_doc(id)
         if must_exist and doc.get().to_dict() is None:
-            LOG.warning(f"Failed to delete member '{id}' in database - they do "
-                "not exist")
-            raise MemberNotFound
+            LOG.warning(f"Failed to delete member '{id}' in database - "
+                "they do not exist")
+            raise MemberNotFound(id, "delete_member_data")
         doc.delete()
         LOG.debug(f"Deleted member '{id}' from database")
 
