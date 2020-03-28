@@ -39,7 +39,7 @@ try:
     PREFIX = config["command-prefix"]
     SERVER_ID = config["server-id"]
     VER_ROLE = config["verified-role"]
-    ALLOW_CHANNELS = config["allowed-channels"]
+    VER_CHANNEL = config["verification-channel"]
     ADMIN_CHANNEL = config["admin-channel"]
     ADMIN_ROLES = config["admin-roles"]
     EMAIL = config["email-address"]

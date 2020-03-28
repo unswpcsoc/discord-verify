@@ -42,6 +42,14 @@ def main():
 
     BOT = commands.Bot(command_prefix=PREFIX)
 
+    @BOT.event
+    async def on_error(event, *args, **kwargs):
+        typ, val, traceback = sys.exc_info()
+        if hasattr(val, "notify") and callable(val.notify):
+            await val.notify()
+            return
+        raise val
+
     BOT.load_extension("iam.core")
     BOT.load_extension("iam.db")
     BOT.load_extension("iam.mail")

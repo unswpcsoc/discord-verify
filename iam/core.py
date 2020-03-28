@@ -28,7 +28,7 @@ from discord.ext import commands
 
 from iam.log import new_logger
 from iam.config import PREFIX
-import iam.hooks
+from iam.hooks import pre, post, log_invoke, log_success
 
 LOG = None
 """Logger for this module."""
@@ -45,7 +45,7 @@ def setup(bot):
     global LOG
     LOG = new_logger(__name__)
     LOG.debug(f"Setting up {__name__} extension...")
-    cog = Core(bot)
+    cog = Core(bot, LOG)
     LOG.debug(f"Initialised {COG_NAME} cog")
     bot.add_cog(cog)
     LOG.debug(f"Added {COG_NAME} cog to bot")
@@ -68,7 +68,7 @@ class Core(commands.Cog, name=COG_NAME):
     Attributes:
         bot: Bot object that registered this cog.
     """
-    def __init__(self, bot):
+    def __init__(self, bot, logger):
         """Initialise cog with given bot.
 
         Args:
@@ -76,7 +76,7 @@ class Core(commands.Cog, name=COG_NAME):
         """
         LOG.debug(f"Initialising {COG_NAME} cog...")
         self.bot = bot
-        self.log = LOG
+        self.logger = logger
         self.bot.remove_command("help")
 
     @commands.Cog.listener()
@@ -89,7 +89,7 @@ class Core(commands.Cog, name=COG_NAME):
         """Handle exceptions raised by events/commands.
         
         If exception was raised during execution of event/command handler, 
-        attempt to run its def_handler if it has one.
+        attempt to run its notify method if it has one.
 
         If exception is related to incorrect command usage, attempt to display
         help for that command.
@@ -102,27 +102,24 @@ class Core(commands.Cog, name=COG_NAME):
             Any exception that is not handled by the above.
         """
         if isinstance(error, commands.MissingRequiredArgument):
-            await self.show_help_single(ctx, ctx.invoked_with)
+            await self.show_help_single(ctx, ctx.command.qualified_name)
             return
 
         if hasattr(error, "original"):
             err = error.original
-            if hasattr(err, "def_handler") and callable(err.def_handler):
-                await err.def_handler()
+            if hasattr(err, "notify") and callable(err.notify):
+                await err.notify()
                 return
         
         raise error
 
     @commands.command(
         name="help",
-        aliases=["?"],
         help="Display this help dialogue.",
         usage=""
     )
-    @iam.hooks.pre(iam.hooks.log_attempt())
-    @iam.hooks.pre(iam.hooks.is_admin_user)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.post(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def cmd_help(self, ctx, *query):
         """Handle help command.
 
@@ -170,29 +167,6 @@ class Core(commands.Cog, name=COG_NAME):
             await target.send("No such command exists!")
             return
         await target.send(f"Usage: {make_help_text(cmd)}")
-
-    @commands.command(
-        name="exit",
-        help="Gracefully log out and shut down the bot.",
-        usage=""
-    )
-    @iam.hooks.pre(iam.hooks.log_attempt())
-    @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
-    @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.post(iam.hooks.log_success())
-    async def cmd_exit(self, ctx):
-        """Handle exit command.
-        
-        Gracefully log out and shut down the bot.
-
-        Args:
-            ctx: Context object associated with command invocation.
-        """
-        LOG.info("Shutting down...")
-        await ctx.send("I am shutting down...")
-        LOG.debug("Logging out of Discord...")
-        await self.bot.logout()
 
 def make_help_text(cmd):
     """Generate help text for command.

@@ -77,22 +77,21 @@ def new_logger(name, c_level=logging.INFO, f_level=logging.DEBUG):
 
     return logger
 
-def log_event(cog, meta, *objects, level=logging.DEBUG):
-    """Logs an event and information about its invocation.
-
-    Cog must have log as an instance variable.
+def log_func(logger, level, meta, *args, **kwargs):
+    """Logs a function call and its args/kwargs.
 
     Args:
-        cog: Cog attached to event invocation.
-        meta: String representing info about event.
-        *objects: Objects attached to event invocation.
+        logger: Logger to write log to.
         level: Logging level to log at.
+        meta: String representing info about function, including name.
+        *args: Args supplied to function call.
+        **kwargs: Keyword args supplied to function call.
     """
-    info = [meta]
-    for object in objects:
-        object_dict = OBJECT_TO_REP[type(object)](object)
-        info.append(f"{type(object).__name__}: {str(object_dict)}")
-    cog.log.log(level, " - ".join(info))
+    arg_reps = []
+    for arg in args:
+        arg_dict = OBJECT_TO_REP[type(arg)](arg)
+        arg_reps.append(f"{type(arg).__name__}: {str(arg_dict)}")
+    logger.log(level, " - ".join([meta, ", ".join(arg_reps)]))
 
 def context_to_dict(ctx):
     """Convert Context object into dict containing their info.

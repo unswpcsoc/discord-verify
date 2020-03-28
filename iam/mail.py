@@ -51,7 +51,7 @@ def setup(bot):
     global LOG
     LOG = new_logger(__name__)
     LOG.debug(f"Setting up {__name__} extension...")
-    cog = Mail()
+    cog = Mail(LOG)
     LOG.debug(f"Initialised {COG_NAME} cog")
     bot.add_cog(cog)
     LOG.debug(f"Added {COG_NAME} cog to bot")
@@ -78,7 +78,7 @@ class MailError(Exception):
         """
         self.recipient = recipient
 
-    def def_handler(self):
+    def notify(self):
         """Default handler for this exception.
 
         Log msg as error.
@@ -98,8 +98,9 @@ class Mail(commands.Cog, name=COG_NAME):
     CHARSET = "UTF-8"
     """String representing encoding used for emails."""
 
-    def __init__(self):
+    def __init__(self, logger):
         """Init cog and connect to Amazon SES."""
+        self.logger = logger
         self.client = connect()
 
     def send_email(self, recipient, subject, body_text):

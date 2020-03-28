@@ -27,13 +27,19 @@ from enum import IntEnum
 from functools import wraps
 import hmac
 from discord.ext import commands
-from discord import NotFound
+from discord import Member, NotFound
+from logging import DEBUG, INFO
 
 from iam.log import new_logger
-import iam.hooks
 from iam.db import MemberKey, SecretID, MemberNotFound
 from iam.mail import MailError, is_valid_email
 from iam.config import PREFIX, SERVER_ID, VER_ROLE, ADMIN_CHANNEL
+from iam.hooks import (
+    pre, post, check, log_attempt, log_invoke, log_success, is_verified_user,
+    was_verified_user, is_unverified_user, never_verified_user, is_admin_user,
+    is_guild_member, in_ver_channel, in_admin_channel, in_dm_channel, is_human,
+    is_not_command
+)
 
 LOG = None
 """Logger for this module."""
@@ -50,7 +56,7 @@ def setup(bot):
     global LOG
     LOG = new_logger(__name__)
     LOG.debug(f"Setting up {__name__} extension...")
-    cog = Verify(bot)
+    cog = Verify(bot, LOG)
     LOG.debug(f"Initialised {COG_NAME} cog")
     bot.add_cog(cog)
     LOG.debug(f"Added {COG_NAME} cog to bot")
@@ -85,7 +91,7 @@ def _next_state(state):
         return wrapper
     return decorator
 
-def _awaiting_approval(func, cog, object, *_):
+def _awaiting_approval(cog, obj, *func_args, **func_kwargs):
     """Raises exception if invoker is not awaiting approval.
     
     Can only be used within the Verify cog.
@@ -93,18 +99,17 @@ def _awaiting_approval(func, cog, object, *_):
     Args:
         func: Function invoked.
         cog: Verify cog.
-        object: Object associated with function invocation.
+        obj: Object associated with function invocation.
 
     Raises:
         CheckFailed: If invoker does not have verified role.
     """
-    if object.id not in cog.verifying:
-        raise iam.hooks.CheckFailed(cog.admin_channel, "That user is not "
-            "currently undergoing verification")
-    if cog.verifying[object.id][MemberKey.STATE] \
+    if obj.id not in cog.verifying:
+        return False, "That user is not currently undergoing verification"
+    if cog.verifying[obj.id][MemberKey.STATE] \
         != cog.State.AWAIT_APPROVAL:
-        raise iam.hooks.CheckFailed(cog.admin_channel, "That user is not "
-            "awaiting approval.")
+        return False, "That user is not awaiting approval."
+    return True, None
 
 class Verify(commands.Cog, name=COG_NAME):
     """Handle automatic verification of server members.
@@ -132,7 +137,7 @@ class Verify(commands.Cog, name=COG_NAME):
         AWAIT_ID = 5
         AWAIT_APPROVAL = 6
 
-    def __init__(self, bot):
+    def __init__(self, bot, logger):
         """Init cog with given bot.
         
         Args:
@@ -140,7 +145,7 @@ class Verify(commands.Cog, name=COG_NAME):
         """
         LOG.debug(f"Initialising {COG_NAME} cog...")
         self.bot = bot
-        self.log = LOG
+        self.logger = logger
         self.__secret_ = None
         self.__state_handler = [
             self.__state_await_name,
@@ -191,10 +196,10 @@ class Verify(commands.Cog, name=COG_NAME):
         if ctx.invoked_subcommand is None:
             await self.cmd_verify(ctx)
 
-    @iam.hooks.pre(iam.hooks.log_attempt())
-    @iam.hooks.pre(iam.hooks.in_allowed_channel, error=True)
-    @iam.hooks.pre(iam.hooks.is_unverified_user, error=True)
-    @iam.hooks.pre(iam.hooks.log_invoke())
+    @pre(log_attempt())
+    @pre(check(in_ver_channel, notify=True))
+    @pre(check(is_unverified_user, notify=True))
+    @pre(log_invoke())
     async def cmd_verify(self, ctx):
         """Handle verify command.
 
@@ -211,12 +216,12 @@ class Verify(commands.Cog, name=COG_NAME):
         help="Verify a member awaiting exec approval.",
         usage="(Discord ID) __member__"
     )
-    @iam.hooks.pre(iam.hooks.log_attempt())
-    @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
-    @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.post(iam.hooks.log_success())
-    async def cmd_verify_approve(self, ctx, member_id: int):
+    @pre(log_attempt())
+    @pre(check(in_admin_channel, notify=True))
+    @pre(check(is_admin_user, notify=True))
+    @pre(log_invoke())
+    @post(log_success())
+    async def cmd_verify_approve(self, ctx, member: Member):
         """Handle verify approve command.
 
         Grant member verified rank, if they are currently awaiting exec
@@ -226,19 +231,19 @@ class Verify(commands.Cog, name=COG_NAME):
             ctx: Context object associated with command invocation.
             member_id: Discord ID of member to approve.
         """
-        await self.__proc_exec_approve(self.guild.get_member(member_id))
+        await self.__proc_exec_approve(member)
 
     @grp_verify.command(
         name="reject",
         help="Reject a member awaiting exec approval.",
         usage="(Discord ID) __member__ (multiple words) __reason__"
     )
-    @iam.hooks.pre(iam.hooks.log_attempt())
-    @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
-    @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.post(iam.hooks.log_success())
-    async def cmd_verify_reject(self, ctx, member_id: int, *, reason: str):
+    @pre(log_attempt())
+    @pre(check(in_admin_channel, notify=True))
+    @pre(check(is_admin_user, notify=True))
+    @pre(log_invoke())
+    @post(log_success())
+    async def cmd_verify_reject(self, ctx, member: Member, *, reason: str):
         """Handle verify reject command.
 
         Reject member for verification and delete them from database, if they
@@ -249,7 +254,6 @@ class Verify(commands.Cog, name=COG_NAME):
             member_id: Discord ID of member to approve.
             reason: Rejection reason.
         """
-        member = self.guild.get_member(member_id)
         await self.__proc_exec_reject(member, reason)
 
     @grp_verify.command(
@@ -257,11 +261,11 @@ class Verify(commands.Cog, name=COG_NAME):
         help="Display list of members awaiting approval for verification.",
         usage=""
     )
-    @iam.hooks.pre(iam.hooks.log_attempt())
-    @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
-    @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.post(iam.hooks.log_success())
+    @pre(log_attempt())
+    @pre(check(is_admin_user, notify=True))
+    @pre(check(in_admin_channel, notify=True))
+    @pre(log_invoke())
+    @post(log_success())
     async def cmd_verify_pending(self, ctx):
         """Handle verify pending command.
 
@@ -279,12 +283,12 @@ class Verify(commands.Cog, name=COG_NAME):
         help="Retrieve stored photo of ID from member awaiting approval.",
         usage="(Discord ID) __member__"
     )
-    @iam.hooks.pre(iam.hooks.log_attempt())
-    @iam.hooks.pre(iam.hooks.in_admin_channel, error=True)
-    @iam.hooks.pre(iam.hooks.is_admin_user, error=True)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.post(iam.hooks.log_success())
-    async def cmd_verify_check(self, ctx, member_id: int):
+    @pre(log_attempt())
+    @pre(check(in_admin_channel, notify=True))
+    @pre(check(is_admin_user, notify=True))
+    @pre(log_invoke())
+    @post(log_success())
+    async def cmd_verify_check(self, ctx, member: Member):
         """Handle verify check command.
 
         Resend ID attachments from member to admin channel defined in config.
@@ -292,16 +296,15 @@ class Verify(commands.Cog, name=COG_NAME):
         Args:
             ctx: Context object associated with command invocation.
         """
-        member = self.guild.get_member(member_id)
         await self.__proc_resend_id(member)
 
     @commands.command(name="restart", hidden=True)
-    @iam.hooks.pre(iam.hooks.log_attempt())
-    @iam.hooks.pre(iam.hooks.in_dm_channel)
-    @iam.hooks.pre(iam.hooks.is_guild_member, error=True)
-    @iam.hooks.pre(iam.hooks.is_unverified_user)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.post(iam.hooks.log_success())
+    @pre(log_attempt())
+    @pre(check(in_dm_channel))
+    @pre(check(is_guild_member, notify=True))
+    @pre(check(is_unverified_user))
+    @pre(log_invoke())
+    @post(log_success())
     async def cmd_restart(self, ctx):
         """Handle restart command.
 
@@ -314,12 +317,12 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_restart(ctx.author)
 
     @commands.command(name="resend", hidden=True)
-    @iam.hooks.pre(iam.hooks.log_attempt())
-    @iam.hooks.pre(iam.hooks.in_dm_channel)
-    @iam.hooks.pre(iam.hooks.is_guild_member, error=True)
-    @iam.hooks.pre(iam.hooks.is_unverified_user)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.post(iam.hooks.log_success())
+    @pre(log_attempt())
+    @pre(check(in_dm_channel))
+    @pre(check(is_guild_member, notify=True))
+    @pre(check(is_unverified_user))
+    @pre(log_invoke())
+    @post(log_success())
     async def cmd_resend(self, ctx):
         """Handle resend command.
 
@@ -332,10 +335,10 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_resend_email(self.guild.get_member(ctx.author.id))
 
     @commands.Cog.listener()
-    @iam.hooks.pre(iam.hooks.is_human, log_check=False)
-    @iam.hooks.pre(iam.hooks.was_verified_user, log_check=False)
-    @iam.hooks.pre(iam.hooks.log_invoke("was verified"))
-    @iam.hooks.post(iam.hooks.log_success("was verified"))
+    @pre(check(is_human, level=None))
+    @pre(check(was_verified_user, level=None))
+    @pre(log_invoke("was verified"))
+    @post(log_success("was verified"))
     async def on_member_join(self, member):
         """Handle member joining that was previously verified.
 
@@ -347,13 +350,12 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_grant_rank(member)
 
     @commands.Cog.listener()
-    @iam.hooks.pre(iam.hooks.is_not_command, log_check=False)
-    @iam.hooks.pre(iam.hooks.is_human, log_check=False)
-    @iam.hooks.pre(iam.hooks.in_dm_channel, log_check=False)
-    @iam.hooks.pre(iam.hooks.is_guild_member, log_check=False)
-    @iam.hooks.pre(iam.hooks.is_unverified_user, log_check=False)
-    @iam.hooks.pre(iam.hooks.log_invoke(meta="verifying"))
-    @iam.hooks.post(iam.hooks.log_success(meta="verifying"))
+    @pre(check(is_human, level=None))
+    @pre(check(in_dm_channel, level=None))
+    @pre(check(is_guild_member, level=None))
+    @pre(check(is_unverified_user, level=None))
+    @pre(log_invoke(meta="verifying"))
+    @post(log_success(meta="verifying"))
     async def on_message(self, message):
         """Handle DM received by unverified member.
 
@@ -362,11 +364,15 @@ class Verify(commands.Cog, name=COG_NAME):
         Args:
             message: Message object received.
         """
+        if message.content == "?restart":
+            return
         member = self.guild.get_member(message.author.id)
         if member.id in self.verifying:
             state = self.verifying[member.id][MemberKey.STATE]
             await self.__state_handler[state](member, message)
 
+    @pre(log_invoke(level=DEBUG))
+    @post(log_success())
     def get_code(self, user):
         """Generate verification code for user.
 
@@ -379,8 +385,8 @@ class Verify(commands.Cog, name=COG_NAME):
         msg = bytes(str(user.id), "utf8")
         return hmac.new(self.__secret, msg, "sha256").hexdigest()
 
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_begin(self, member):
         """Begin verification process for member.
 
@@ -420,8 +426,8 @@ class Verify(commands.Cog, name=COG_NAME):
 
         await self.__proc_request_name(member)
 
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_restart(self, user):
         """Restart verification process for user.
 
@@ -436,8 +442,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_begin(user)
 
     @_next_state(State.AWAIT_NAME)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_request_name(self, member):
         """DM name request to member and await response.
 
@@ -448,8 +454,8 @@ class Verify(commands.Cog, name=COG_NAME):
             "government-issued ID?\nYou can restart this verification process "
             f"at any time by typing `{PREFIX}restart`.")
 
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __state_await_name(self, member, message):
         """Handle message received from member while awaiting name.
 
@@ -460,13 +466,18 @@ class Verify(commands.Cog, name=COG_NAME):
             message: Message object received from member.
         """
         full_name = message.content
+        MAX_NAME_LEN = 500
+        if len(full_name) > MAX_NAME_LEN:
+            await member.send(f"Name must be {MAX_NAME_LEN} characters "
+                "or fewer. Please try again.")
+
         self.db.update_member_data(member.id, {MemberKey.NAME: full_name})
         self.verifying[member.id][MemberKey.NAME] = full_name
         await self.__proc_request_unsw(member)
 
     @_next_state(State.AWAIT_UNSW)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_request_unsw(self, member):
         """DM is UNSW? request to member and await response.
 
@@ -475,8 +486,8 @@ class Verify(commands.Cog, name=COG_NAME):
         """
         await member.send("Are you a UNSW student? Please type `y` or `n`.")
 
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __state_await_unsw(self, member, message):
         """Handle message received from member while awaiting is UNSW?.
 
@@ -488,17 +499,17 @@ class Verify(commands.Cog, name=COG_NAME):
             member: Member object that sent message.
             message: Message object received from member.
         """
-        ans = message.content
-        if ans == "y":
+        ans = message.content.lower()
+        if ans == "y" or ans == "yes":
             await self.__proc_request_zid(member)
-        elif ans == "n":
+        elif ans == "n" or ans == "no":
             await self.__proc_request_email(member)
         else:
             await member.send("Please type `y` or `n`.")
 
     @_next_state(State.AWAIT_ZID)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_request_zid(self, member):
         """DM zID request to member and await response.
 
@@ -508,8 +519,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await member.send("What is your 7 digit student number, "
             "not including the 'z' at the start?")
     
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __state_await_zid(self, member, message):
         """Handle message received from member while awaiting zID.
 
@@ -521,15 +532,17 @@ class Verify(commands.Cog, name=COG_NAME):
             message: Message object received from member.
         """
         zid = message.content
-        if len(zid) != 7:
-            await member.send("Your response must be 7 characters long. "
-                "Please try again.")
+        ZID_LEN = 7
+        if len(zid) != ZID_LEN:
+            await member.send(f"Your response must be {ZID_LEN} "
+                "characters long. Please try again.")
             return
         try:
             zid = int(zid)
         except ValueError:
             await member.send("Your response must be an integer. "
                 "Please try again.")
+            return
         email = f"z{zid}@student.unsw.edu.au"
 
         patch = {MemberKey.ZID: zid, MemberKey.EMAIL: email}
@@ -540,8 +553,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_send_email(member, email)
 
     @_next_state(State.AWAIT_EMAIL)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_request_email(self, member):
         """DM email address request to member and await response.
 
@@ -550,8 +563,8 @@ class Verify(commands.Cog, name=COG_NAME):
         """
         await member.send("What is your email address?")
 
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __state_await_email(self, member, message):
         """Handle message received from member while awaiting email address.
 
@@ -569,8 +582,8 @@ class Verify(commands.Cog, name=COG_NAME):
 
         await self.__proc_send_email(member, email)
 
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_send_email(self, member, email):
         """Send verification code to member's email address.
 
@@ -584,10 +597,10 @@ class Verify(commands.Cog, name=COG_NAME):
 
         try:
             async with member.typing():
-                self.mail.send_email(email, "Discord Verification", 
+                self.mail.send_email(email, "PCSoc Discord Verification", 
                     f"Your code is {code}")
         except MailError as err:
-            err.def_handler()
+            err.notify()
             await member.send("Oops! Something went wrong while attempting "
                 "to send you an email. Please ensure that your details have "
                 "been entered correctly.")
@@ -601,8 +614,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_request_code(member)
 
     @_next_state(State.AWAIT_CODE)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_request_code(self, member):
         """DM verification code request to member and await response.
 
@@ -613,8 +626,8 @@ class Verify(commands.Cog, name=COG_NAME):
             "(check your spam folder if you don't see it).\n"
             f"You can request another email by typing `{PREFIX}resend`.")
 
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __state_await_code(self, member, message):
         """Handle message received from member while awaiting code.
 
@@ -644,8 +657,8 @@ class Verify(commands.Cog, name=COG_NAME):
         else:
             await self.__proc_grant_rank(member)
 
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_resend_email(self, member):
         """Resend verification email to member's email address, if sent before.
 
@@ -659,8 +672,8 @@ class Verify(commands.Cog, name=COG_NAME):
             await self.__proc_send_email(member, email)
 
     @_next_state(State.AWAIT_ID)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_request_id(self, member):
         """DM ID request to member and await response.
 
@@ -670,8 +683,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await member.send("Please send a message with a "
             "photo of your government-issued ID attached.")
 
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __state_await_id(self, member, message):
         """Handle message received from member while awaiting ID.
         
@@ -689,8 +702,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.__proc_forward_id_admins(member, attachments)
 
     @_next_state(State.AWAIT_APPROVAL)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_forward_id_admins(self, member, attachments):
         """Forward member ID attachments to admin channel.
 
@@ -717,8 +730,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await member.send("Your attachment(s) have been forwarded to the "
             "execs. Please wait.")
 
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __state_await_approval(self, member, message):
         """Handle message received from member while awaiting exec approval.
 
@@ -730,9 +743,9 @@ class Verify(commands.Cog, name=COG_NAME):
         """
         pass
 
-    @iam.hooks.pre(_awaiting_approval, error=True)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(check(_awaiting_approval, notify=True))
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_exec_approve(self, member):
         """Approve member awaiting exec approval.
 
@@ -743,9 +756,9 @@ class Verify(commands.Cog, name=COG_NAME):
         """
         await self.__proc_grant_rank(member)
 
-    @iam.hooks.pre(_awaiting_approval, error=True)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(check(_awaiting_approval, notify=True))
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_exec_reject(self, member, reason):
         """Reject member awaiting exec approval and send them reason.
 
@@ -766,8 +779,8 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.admin_channel.send("Rejected verification request from "
             f"{member.mention}.")
 
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_display_pending(self):
         """Display list of members currently awaiting exec approval.
 
@@ -789,9 +802,9 @@ class Verify(commands.Cog, name=COG_NAME):
         await self.admin_channel.send("__Members awaiting approval:__\n"
             f"{mentions_formatted}")
 
-    @iam.hooks.pre(_awaiting_approval, error=True)
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(check(_awaiting_approval, notify=True))
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_resend_id(self, member):
         """Resend ID attachments from member to admin channel.
 
@@ -822,8 +835,8 @@ class Verify(commands.Cog, name=COG_NAME):
                 f"{member.id}` or `{PREFIX}verify reject {member.id} "
                 "\"reason\"`.", files=files)
 
-    @iam.hooks.pre(iam.hooks.log_invoke())
-    @iam.hooks.pre(iam.hooks.log_success())
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_grant_rank(self, member):
         """Grant verified rank to member and notify them and execs.
 
