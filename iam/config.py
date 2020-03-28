@@ -40,6 +40,7 @@ try:
     SERVER_ID = config["server-id"]
     VER_ROLE = config["verified-role"]
     VER_CHANNEL = config["verification-channel"]
+    MAX_VER_EMAILS = config["max-verification-emails"]
     ADMIN_CHANNEL = config["admin-channel"]
     ADMIN_ROLES = config["admin-roles"]
     EMAIL = config["email-address"]
