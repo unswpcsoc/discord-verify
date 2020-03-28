@@ -25,7 +25,7 @@ SOFTWARE.
 
 import boto3
 from botocore.exceptions import ClientError
-from discord.ext import commands
+from discord.ext.commands import Cog
 from re import search
 
 from iam.log import new_logger
@@ -93,7 +93,7 @@ def is_valid_email(email):
     """
     return search(EMAIL_REGEX, email) is not None
 
-class Mail(commands.Cog, name=COG_NAME):
+class Mail(Cog, name=COG_NAME):
     """Handle email functions"""
     CHARSET = "UTF-8"
     """String representing encoding used for emails."""
