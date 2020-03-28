@@ -24,7 +24,7 @@ SOFTWARE.
 """Handle core functions of the bot."""
 
 from inspect import getdoc
-from discord.ext import commands
+from discord.ext.commands import Cog, Group, command, MissingRequiredArgument
 
 from iam.log import new_logger
 from iam.config import PREFIX
@@ -62,7 +62,7 @@ def teardown(bot):
     for handler in LOG.handlers:
         LOG.removeHandler(handler)
 
-class Core(commands.Cog, name=COG_NAME):
+class Core(Cog, name=COG_NAME):
     """Handle core functions of the bot.
 
     Attributes:
@@ -79,12 +79,12 @@ class Core(commands.Cog, name=COG_NAME):
         self.logger = logger
         self.bot.remove_command("help")
 
-    @commands.Cog.listener()
+    @Cog.listener()
     async def on_ready(self):
         """Log message on bot startup."""
         LOG.info(f"Bot running with command prefix '{PREFIX}'")
 
-    @commands.Cog.listener()
+    @Cog.listener()
     async def on_command_error(self, ctx, error):
         """Handle exceptions raised by events/commands.
         
@@ -101,7 +101,7 @@ class Core(commands.Cog, name=COG_NAME):
         Raises:
             Any exception that is not handled by the above.
         """
-        if isinstance(error, commands.MissingRequiredArgument):
+        if isinstance(error, MissingRequiredArgument):
             await self.show_help_single(ctx, ctx.command.qualified_name)
             return
 
@@ -113,7 +113,7 @@ class Core(commands.Cog, name=COG_NAME):
         
         raise error
 
-    @commands.command(
+    @command(
         name="help",
         help="Display this help dialogue.",
         usage=""
@@ -194,7 +194,7 @@ def make_help_text(cmd):
         help.append(" | ".join(aliases))
     
     # Append subcommands.
-    if isinstance(cmd, commands.Group) \
+    if isinstance(cmd, Group) \
         and len(cmd.commands) > 0:
         subs = ["__Subcommands__"]
         subs += [f"{PREFIX}{c.qualified_name}" for c in cmd.commands]
