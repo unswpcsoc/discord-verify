@@ -28,7 +28,7 @@ from firebase_admin import credentials, firestore
 import google.cloud.exceptions
 from logging import DEBUG, INFO
 from secrets import token_bytes
-from discord.ext import commands
+from discord.ext.commands import Cog
 
 from iam.log import new_logger
 from iam.hooks import pre, post, log_invoke, log_success
@@ -103,19 +103,21 @@ class MemberNotFound(Exception):
 
 class MemberKey():
     """Keys for member entries in database."""
-    STATE = "_state"
     NAME = "full_name"
     ZID = "zid"
     EMAIL = "email"
+    EMAIL_ATTEMPTS = "email_verify_attempts"
     EMAIL_VER = "email_verified"
     ID_MESSAGE = "id_message"
     ID_VER = "id_verified"
+    VER_STATE = "_verify_state"
+    VER_TIME = "_verify_timestamp"
 
 class SecretID():
     """Names for secret entries in database."""
     VERIFY = "verify"
 
-class Database(commands.Cog):
+class Database(Cog):
     """Handle database functions.
     
     Attributes:
