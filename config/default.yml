@@ -3,6 +3,7 @@ command-prefix: "?"
 server-id: SERVER-ID-HERE
 verified-role: VERIFIED-ROLE-ID-HERE
 verification-channel: CHANNEL-ID-HERE
+max-verification-emails: 5
 admin-channel: CHANNEL-ID-HERE
 admin-roles:
   - ROLE-ID-HERE
