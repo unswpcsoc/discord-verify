@@ -24,7 +24,10 @@ SOFTWARE.
 """Handle core functions of the bot."""
 
 from inspect import getdoc
-from discord.ext.commands import Cog, Group, command, MissingRequiredArgument
+from discord.ext.commands import (
+    Cog, Group, command, CommandNotFound, DisabledCommand, 
+    MissingRequiredArgument, TooManyArguments, ArgumentParsingError
+)
 
 from iam.log import new_logger
 from iam.config import PREFIX
@@ -86,13 +89,15 @@ class Core(Cog, name=COG_NAME):
 
     @Cog.listener()
     async def on_command_error(self, ctx, error):
-        """Handle exceptions raised by events/commands.
-        
-        If exception was raised during execution of event/command handler, 
-        attempt to run its notify method if it has one.
+        """Handle exceptions raised by commands.
 
         If exception is related to incorrect command usage, attempt to display
         help for that command.
+
+        If exception is that command does not exist or is disabled, ignore.
+
+        If exception is not handled here, will be raised and handled by 
+        on_error in bot.py.
 
         Args:
             ctx: Context object associated with event/command that raised.
@@ -101,16 +106,18 @@ class Core(Cog, name=COG_NAME):
         Raises:
             Any exception that is not handled by the above.
         """
-        if isinstance(error, MissingRequiredArgument):
+        if isinstance(error, CommandNotFound) \
+            or isinstance(error, DisabledCommand):
+            return
+
+        if isinstance(error, MissingRequiredArgument) \
+            or isinstance(error, TooManyArguments) \
+            or isinstance(error, ArgumentParsingError):
             await self.show_help_single(ctx, ctx.command.qualified_name)
             return
 
         if hasattr(error, "original"):
-            err = error.original
-            if hasattr(err, "notify") and callable(err.notify):
-                await err.notify()
-                return
-        
+            raise error.original
         raise error
 
     @command(

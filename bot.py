@@ -26,6 +26,7 @@ SOFTWARE.
 """Launches the Discord bot."""
 
 import sys
+import traceback
 from logging import INFO
 from discord.ext import commands
 
@@ -44,11 +45,22 @@ def main():
 
     @BOT.event
     async def on_error(event, *args, **kwargs):
-        typ, val, traceback = sys.exc_info()
-        if hasattr(val, "notify") and callable(val.notify):
-            await val.notify()
+        """Handle exceptions raised by events/commands.
+
+        If exception was raised during execution of event/command handler, 
+        attempt to run its notify method if it has one. Otherwise, ignore but
+        log error traceback.
+
+        Args:
+            event: Event that raised exception.
+            args: Args supplied to event call.
+            kwargs: Kwargs supplied to event call.
+        """
+        err = sys.exc_info()[1]
+        if hasattr(err, "notify") and callable(err.notify):
+            await err.notify()
             return
-        raise val
+        LOG.error(f"Ignoring exception in {event}\n{traceback.format_exc()}")
 
     BOT.load_extension("iam.core")
     BOT.load_extension("iam.db")
