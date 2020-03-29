@@ -826,7 +826,9 @@ class Verify(Cog, name=COG_NAME):
             member: Member object to reject verification for.
             reason: String representing rejection reason.
         """
-        self.db.delete_member_data(member.id, must_exist=False)
+        self.db.update_member_data(member.id, {
+            MemberKey.VER_STATE: None
+        })
 
         await member.send("Your verification request has been denied "
             f"for the following reason(s): `{reason}`.\n"
