@@ -110,6 +110,7 @@ class MemberKey():
     EMAIL_VER = "email_verified"
     ID_MESSAGE = "id_message"
     ID_VER = "id_verified"
+    VER_EXEC = "verifying_exec"
     VER_STATE = "_verify_state"
     VER_TIME = "_verify_timestamp"
 
