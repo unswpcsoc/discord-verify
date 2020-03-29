@@ -113,6 +113,7 @@ class MemberKey():
     VER_EXEC = "verifying_exec"
     VER_STATE = "_verify_state"
     VER_TIME = "_verify_timestamp"
+    MAX_EMAIL_ATTEMPTS = "_max_email_verify_attempts"
 
 class SecretID():
     """Names for secret entries in database."""

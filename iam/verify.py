@@ -419,7 +419,19 @@ class Verify(Cog, name=COG_NAME):
         try:
             member_data = self.db.get_member_data(member.id)
         except MemberNotFound:
-            pass
+            self.db.set_member_data(member.id, {
+                MemberKey.NAME: None,
+                MemberKey.ZID: None,
+                MemberKey.EMAIL: None,
+                MemberKey.EMAIL_ATTEMPTS: 0,
+                MemberKey.EMAIL_VER: False,
+                MemberKey.ID_MESSAGE: None,
+                MemberKey.ID_VER: False,
+                MemberKey.VER_EXEC: None,
+                MemberKey.VER_STATE: None,
+                MemberKey.VER_TIME: time(),
+                MemberKey.MAX_EMAIL_ATTEMPTS: MAX_VER_EMAILS
+            })
         else:
             if member_data[MemberKey.ID_VER]:
                 LOG.info(f"Member {member} was already verified. "
@@ -431,26 +443,23 @@ class Verify(Cog, name=COG_NAME):
                 await self.admin_channel.send(f"{member.mention} was "
                     "previously verified, and has been given the verified "
                     "rank again through request.")
-            else:
-                LOG.debug(f"Member {member} was already verified. "
+                return
+            elif member_data[MemberKey.VER_STATE] is not None:
+                LOG.debug(f"Member {member} already undergoing verification. "
                     "Notifying them to use the restart command...")     
                 await member.send("You are already undergoing the "
                     "verification process. To restart, type "
                     f"`{PREFIX}restart`.")
-            return
-
-        self.db.set_member_data(member.id, {
-            MemberKey.NAME: None,
-            MemberKey.ZID: None,
-            MemberKey.EMAIL: None,
-            MemberKey.EMAIL_ATTEMPTS: 0,
-            MemberKey.EMAIL_VER: False,
-            MemberKey.ID_MESSAGE: None,
-            MemberKey.ID_VER: False,
-            MemberKey.VER_EXEC: None,
-            MemberKey.VER_STATE: None,
-            MemberKey.VER_TIME: time()
-        })
+                return
+            else:
+                email_attempts = member_data[MemberKey.EMAIL_ATTEMPTS]
+                max_email_attempts = member_data[MemberKey.MAX_EMAIL_ATTEMPTS]
+                if email_attempts >= max_email_attempts:
+                    # Member was previously rejected but ran out of email
+                    # verification attempts. Grant them 2 more.
+                    self.db.update_member_data(member.id, {
+                        MemberKey.MAX_EMAIL_ATTEMPTS: max_email_attempts + 2
+                    })
 
         await self.__proc_request_name(member)
 
