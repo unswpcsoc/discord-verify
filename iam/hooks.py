@@ -70,8 +70,8 @@ def make_coro(func):
     """
     if not iscoroutinefunction(func):
         @wraps(func)
-        async def wrapper(*args):
-            return func(*args)
+        async def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
         return wrapper
     return func
 
@@ -111,14 +111,14 @@ def post(action):
         if iscoroutinefunction(func):
             @wraps(func)
             async def wrapper(*args, **kwargs):
-                ret_val = await func(*args)
+                ret_val = await func(*args, **kwargs)
                 if await make_coro(action)(func, *args, **kwargs):
                     return ret_val
         else:
             @wraps(func)
             def wrapper(*args, **kwargs):
-                ret_val = func(*args)
-                if action(func, *args):
+                ret_val = func(*args, **kwargs)
+                if action(func, *args, **kwargs):
                     return ret_val
         return wrapper
     return decorator
