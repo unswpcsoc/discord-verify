@@ -512,6 +512,7 @@ class Verify(Cog, name=COG_NAME):
         if len(full_name) > MAX_NAME_LEN:
             await member.send(f"Name must be {MAX_NAME_LEN} characters "
                 "or fewer. Please try again.")
+            return
 
         self.db.update_member_data(member.id, {MemberKey.NAME: full_name})
         await self.__proc_request_unsw(member)
