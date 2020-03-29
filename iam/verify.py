@@ -102,21 +102,22 @@ def _next_state(state):
         return wrapper
     return decorator
 
-def _awaiting_approval(cog, obj, *func_args, **func_kwargs):
-    """Raises exception if invoker is not awaiting approval.
+def _awaiting_approval(cog, ctx, member, *func_args, **func_kwargs):
+    """Raises exception if member is not awaiting approval.
     
     Can only be used within the Verify cog.
 
     Args:
         func: Function invoked.
         cog: Verify cog.
-        obj: Object associated with function invocation.
+        ctx: Context object associated with function invocation.
+        member: Member to run check on.
 
     Raises:
         CheckFailed: If invoker does not have verified role.
     """
     try:
-        member_data = cog.db.get_member_data(obj.id)
+        member_data = cog.db.get_member_data(member.id)
     except MemberNotFound:
         return False, "That user is not currently being verified."
     if member_data[MemberKey.ID_VER]:
@@ -160,7 +161,6 @@ class Verify(Cog, name=COG_NAME):
             self.__state_await_id,
             self.__state_await_approval
         ]
-        self.verifying = self.db.get_unverified_members_data()
 
     @property
     def guild(self):
@@ -181,7 +181,9 @@ class Verify(Cog, name=COG_NAME):
     @group(
         name="verify",
         help="Begin verification process for user.",
-        usage=""
+        usage="",
+        invoke_without_command=True,
+        ignore_extra=False
     )
     async def grp_verify(self, ctx):
         """Register verify command group.
@@ -189,8 +191,7 @@ class Verify(Cog, name=COG_NAME):
         Args:
             ctx: Context object associated with command invocation.
         """
-        if ctx.invoked_subcommand is None:
-            await self.cmd_verify(ctx)
+        await self.cmd_verify(ctx)
 
     @pre(log_attempt())
     @pre(check(in_ver_channel, notify=True))
@@ -227,7 +228,7 @@ class Verify(Cog, name=COG_NAME):
             ctx: Context object associated with command invocation.
             member_id: Discord ID of member to approve.
         """
-        await self.__proc_exec_approve(member)
+        await self.__proc_exec_approve(ctx, member)
 
     @grp_verify.command(
         name="reject",
@@ -251,7 +252,7 @@ class Verify(Cog, name=COG_NAME):
             member_id: Discord ID of member to approve.
             reason: Rejection reason.
         """
-        await self.__proc_exec_reject(member, reason)
+        await self.__proc_exec_reject(ctx, member, reason)
 
     @grp_verify.command(
         name="pending",
@@ -297,7 +298,7 @@ class Verify(Cog, name=COG_NAME):
             member_data = self.db.get_member_data(member.id)
         except MemberNotFound:
             await member.send("You are not currently being verified.")
-        await self.__proc_resend_id(member, member_data)
+        await self.__proc_resend_id(ctx, member, member_data)
 
     @command(name="restart", hidden=True)
     @pre(log_attempt())
@@ -354,6 +355,9 @@ class Verify(Cog, name=COG_NAME):
             member: Member object that joined the server.
         """
         await self.__proc_grant_rank(member)
+        await self.admin_channel.send(f"{member.mention} was previously "
+            "verified, and has automatically been granted the verified rank "
+            "upon (re)joining the server.")
 
     @Cog.listener()
     @pre(check(is_human, level=None))
@@ -421,6 +425,12 @@ class Verify(Cog, name=COG_NAME):
                 LOG.info(f"Member {member} was already verified. "
                     "Granting rank...")
                 await self.__proc_grant_rank(member)
+                await member.send("Our records show you were verified in the "
+                    "past. You have been granted the rank once again. Welcome "
+                    "back to the server!")
+                await self.admin_channel.send(f"{member.mention} was "
+                    "previously verified, and has been given the verified "
+                    "rank again through request.")
             else:
                 LOG.debug(f"Member {member} was already verified. "
                     "Notifying them to use the restart command...")     
@@ -437,6 +447,7 @@ class Verify(Cog, name=COG_NAME):
             MemberKey.EMAIL_VER: False,
             MemberKey.ID_MESSAGE: None,
             MemberKey.ID_VER: False,
+            MemberKey.VER_EXEC: None,
             MemberKey.VER_STATE: None,
             MemberKey.VER_TIME: time()
         })
@@ -493,6 +504,7 @@ class Verify(Cog, name=COG_NAME):
 
         Args:
             member: Member object that sent message.
+            member_data: Dict containing data from member entry in database.
             message: Message object received from member.
         """
         full_name = message.content
@@ -526,6 +538,7 @@ class Verify(Cog, name=COG_NAME):
 
         Args:
             member: Member object that sent message.
+            member_data: Dict containing data from member entry in database.
             message: Message object received from member.
         """
         ans = message.content.lower()
@@ -558,6 +571,7 @@ class Verify(Cog, name=COG_NAME):
 
         Args:
             member: Member object that sent message.
+            member_data: Dict containing data from member entry in database.
             message: Message object received from member.
         """
         zid = message.content
@@ -601,6 +615,7 @@ class Verify(Cog, name=COG_NAME):
 
         Args:
             member: Member object that sent message.
+            member_data: Dict containing data from member entry in database.
             message: Message object received from member.
         """
         email = message.content
@@ -620,6 +635,7 @@ class Verify(Cog, name=COG_NAME):
 
         Args:
             member: Member object to send email to.
+            member_data: Dict containing data from member entry in database.
             email: Member's email address.
         """
         email_attempts = member_data[MemberKey.EMAIL_ATTEMPTS]
@@ -672,6 +688,7 @@ class Verify(Cog, name=COG_NAME):
 
         Args:
             member: Member object that sent message.
+            member_data: Dict containing data from member entry in database.
             message: Message object received from member.
         """
         received_code = message.content
@@ -699,6 +716,7 @@ class Verify(Cog, name=COG_NAME):
 
         Args:
             member: Member object to resend email to.
+            member_data: Dict containing data from member entry in database.
         """
         if not member_data[MemberKey.ID_VER] \
             and member_data[MemberKey.VER_STATE] == State.AWAIT_CODE:
@@ -726,6 +744,7 @@ class Verify(Cog, name=COG_NAME):
 
         Args:
             member: Member object that sent message.
+            member_data: Dict containing data from member entry in database.
             message: Message object received from member.
         """
         attachments = message.attachments
@@ -779,25 +798,30 @@ class Verify(Cog, name=COG_NAME):
     @pre(check(_awaiting_approval, notify=True))
     @pre(log_invoke())
     @post(log_success())
-    async def __proc_exec_approve(self, member):
+    async def __proc_exec_approve(self, ctx, member):
         """Approve member awaiting exec approval.
 
         Proceed to grant member verified rank.
 
         Args:
+            ctx: Context object associated with command invocation.
             member: Member object to approve verification for.
         """
+        self.db.update_member_data(member.id, {
+            MemberKey.VER_EXEC: ctx.author.id
+        })
         await self.__proc_grant_rank(member)
 
     @pre(check(_awaiting_approval, notify=True))
     @pre(log_invoke())
     @post(log_success())
-    async def __proc_exec_reject(self, member, reason):
+    async def __proc_exec_reject(self, ctx, member, reason):
         """Reject member awaiting exec approval and send them reason.
 
         Deletes member from the database.
 
         Args:
+            ctx: Context object associated with command invocation.
             member: Member object to reject verification for.
             reason: String representing rejection reason.
         """
@@ -838,7 +862,7 @@ class Verify(Cog, name=COG_NAME):
     @pre(check(_awaiting_approval, notify=True))
     @pre(log_invoke())
     @post(log_success())
-    async def __proc_resend_id(self, member, member_data):
+    async def __proc_resend_id(self, ctx, member, member_data):
         """Resend ID attachments from member to admin channel.
 
         Admin channel defined in config.
@@ -848,7 +872,9 @@ class Verify(Cog, name=COG_NAME):
         Send error message if previous message was deleted.
 
         Args:
+            ctx: Context object associated with command invocation.
             member: Member object to retrieve ID attachments from.
+            member_data: Dict containing data from member entry in database.
         """
         message_id = member_data[MemberKey.ID_MESSAGE]
         try:
@@ -879,10 +905,7 @@ class Verify(Cog, name=COG_NAME):
             member: Member object to grant verified rank to.
         """
         self.db.update_member_data(member.id, {MemberKey.ID_VER: True})
-        member_data = self.db.get_member_data(member.id)
-        full_name = member_data[MemberKey.NAME]
         await member.add_roles(self.guild.get_role(VER_ROLE))
         LOG.info(f"Granted verified rank to member '{member.id}'")
         await member.send("You are now verified. Welcome to the server!")
-        await self.admin_channel.send(f"{member.mention} ({full_name}) is now "
-            "verified.")
+        await self.admin_channel.send(f"{member.mention} is now verified.")
