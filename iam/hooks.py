@@ -195,7 +195,7 @@ def check(check_func, level=DEBUG, notify=False):
             func: Function being invoked.
             cog: Cog associated with function invocation.
             obj: Object associated with function invocation.
-            args: Args supplied to functionc all.
+            args: Args supplied to function call.
             kwargs: Kwargs supplied to function call.
 
         Returns:
@@ -222,7 +222,7 @@ def is_verified_user(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to functionc all.
+        func_args: Args supplied to function call.
         func_kwargs: Kwargs supplied to function call.
 
     Returns:
@@ -245,7 +245,7 @@ def was_verified_user(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to functionc all.
+        func_args: Args supplied to function call.
         func_kwargs: Kwargs supplied to function call.
 
     Returns:
@@ -270,7 +270,7 @@ def is_unverified_user(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to functionc all.
+        func_args: Args supplied to function call.
         func_kwargs: Kwargs supplied to function call.
 
     Returns:
@@ -293,7 +293,7 @@ def never_verified_user(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to functionc all.
+        func_args: Args supplied to function call.
         func_kwargs: Kwargs supplied to function call.
 
     Returns:
@@ -317,7 +317,7 @@ def is_admin_user(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to functionc all.
+        func_args: Args supplied to function call.
         func_kwargs: Kwargs supplied to function call.
 
     Returns:
@@ -339,7 +339,7 @@ def is_guild_member(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to functionc all.
+        func_args: Args supplied to function call.
         func_kwargs: Kwargs supplied to function call.
 
     Returns:
@@ -358,7 +358,7 @@ def in_ver_channel(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to functionc all.
+        func_args: Args supplied to function call.
         func_kwargs: Kwargs supplied to function call.
 
     Returns:
@@ -379,7 +379,7 @@ def in_admin_channel(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to functionc all.
+        func_args: Args supplied to function call.
         func_kwargs: Kwargs supplied to function call.
 
     Returns:
@@ -398,7 +398,7 @@ def in_dm_channel(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to functionc all.
+        func_args: Args supplied to function call.
         func_kwargs: Kwargs supplied to function call.
 
     Returns:
@@ -417,7 +417,7 @@ def is_human(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to functionc all.
+        func_args: Args supplied to function call.
         func_kwargs: Kwargs supplied to function call.
 
     Returns:
@@ -438,7 +438,7 @@ def is_not_command(cog, message, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to functionc all.
+        func_args: Args supplied to function call.
         func_kwargs: Kwargs supplied to function call.
 
     Returns:
