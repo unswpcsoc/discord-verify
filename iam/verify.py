@@ -482,6 +482,9 @@ class Verify(Cog, name=COG_NAME):
         if member_data[MemberKey.ID_VER]:
             await user.send("You are already verified.")
             return
+        elif member_data[MemberKey.VER_STATE] is None:
+            await user.send("You are not currently being verified.")
+            return
 
         async with user.typing():
             self.db.update_member_data(user.id, {
@@ -649,7 +652,8 @@ class Verify(Cog, name=COG_NAME):
             email: Member's email address.
         """
         email_attempts = member_data[MemberKey.EMAIL_ATTEMPTS]
-        if email_attempts >= MAX_VER_EMAILS:
+        max_email_attempts = member_data[MemberKey.MAX_EMAIL_ATTEMPTS]
+        if email_attempts >= max_email_attempts:
             await member.send("You have requested too many emails. "
                 "Please DM an exec to continue verification.")
             return
