@@ -25,7 +25,7 @@ SOFTWARE.
 
 from inspect import getdoc
 from discord.ext.commands import (
-    Cog, Group, command, CommandNotFound, DisabledCommand, 
+    Cog, Group, command, CommandNotFound, DisabledCommand, BadArgument,
     MissingRequiredArgument, TooManyArguments, ArgumentParsingError
 )
 
@@ -112,7 +112,8 @@ class Core(Cog, name=COG_NAME):
 
         if isinstance(error, MissingRequiredArgument) \
             or isinstance(error, TooManyArguments) \
-            or isinstance(error, ArgumentParsingError):
+            or isinstance(error, ArgumentParsingError) \
+            or isinstance(error, BadArgument):
             await self.show_help_single(ctx, ctx.command.qualified_name)
             return
 
