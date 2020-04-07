@@ -39,7 +39,7 @@ LOG = None
 COG_NAME = "Mail"
 """Name of this module's cog."""
 
-EMAIL_REGEX = r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)"
+EMAIL_REGEX = r"^([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)$"
 """Any string that matches this regex is a valid email."""
 
 def setup(bot):
@@ -86,10 +86,13 @@ class MailError(Exception):
         LOG.error(f"Email for recipient '{self.recipient}' failed to send")
 
 def is_valid_email(email):
-    """Returns whether an email is valid.
+    """Returns whether given string is a valid email.
+
+    Args:
+        email: String to validate.
 
     Returns:
-        Boolean value representing whether email is valid.
+        Boolean value representing whether string is a valid email.
     """
     return search(EMAIL_REGEX, email) is not None
 

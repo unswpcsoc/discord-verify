@@ -27,9 +27,11 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import google.cloud.exceptions
 from logging import DEBUG, INFO
+from time import time
 from secrets import token_bytes
 from discord.ext.commands import Cog
 
+from iam.config import MAX_VER_EMAILS
 from iam.log import new_logger
 from iam.hooks import pre, post, log_invoke, log_success
 
@@ -106,14 +108,29 @@ class MemberKey():
     NAME = "full_name"
     ZID = "zid"
     EMAIL = "email"
-    EMAIL_ATTEMPTS = "email_verify_attempts"
     EMAIL_VER = "email_verified"
     ID_MESSAGE = "id_message"
     ID_VER = "id_verified"
     VER_EXEC = "verifying_exec"
     VER_STATE = "_verify_state"
     VER_TIME = "_verify_timestamp"
+    EMAIL_ATTEMPTS = "_email_verify_attempts"
     MAX_EMAIL_ATTEMPTS = "_max_email_verify_attempts"
+
+def make_def_member_data():
+    return {
+        MemberKey.NAME: None,
+        MemberKey.ZID: None,
+        MemberKey.EMAIL: None,
+        MemberKey.EMAIL_VER: False,
+        MemberKey.ID_MESSAGE: None,
+        MemberKey.ID_VER: False,
+        MemberKey.VER_EXEC: None,
+        MemberKey.VER_STATE: None,
+        MemberKey.VER_TIME: time(),
+        MemberKey.EMAIL_ATTEMPTS: 0,
+        MemberKey.MAX_EMAIL_ATTEMPTS: MAX_VER_EMAILS
+    }
 
 class SecretID():
     """Names for secret entries in database."""

@@ -26,13 +26,14 @@ SOFTWARE.
 from enum import IntEnum
 from functools import wraps
 from time import time
+from re import search
 import hmac
 from discord.ext.commands import Cog, group, command
 from discord import Member, NotFound
 from logging import DEBUG, INFO
 
 from iam.log import new_logger
-from iam.db import MemberKey, SecretID, MemberNotFound
+from iam.db import MemberKey, make_def_member_data, SecretID, MemberNotFound
 from iam.mail import MailError, is_valid_email
 from iam.config import (
     PREFIX, SERVER_ID, VER_ROLE, ADMIN_CHANNEL, MAX_VER_EMAILS
@@ -49,6 +50,9 @@ LOG = None
 
 COG_NAME = "Verify"
 """Name of this module's cog."""
+
+ZID_REGEX = r"^[zZ][0-9]{7}$"
+"""Any string that matches this regex is a valid zID."""
 
 def setup(bot):
     """Add Verify cog to bot.
@@ -85,6 +89,17 @@ class State(IntEnum):
     AWAIT_CODE = 4
     AWAIT_ID = 5
     AWAIT_APPROVAL = 6
+
+def is_valid_zid(zid):
+    """Returns whether given string is a valid zID.
+
+    Args:
+        zID: String to validate.
+
+    Returns:
+        Boolean value representing whether string is a valid zID.
+    """
+    return search(ZID_REGEX, zid) is not None
 
 def _next_state(state):
     """Decorate method to trigger state change on completion.
@@ -226,7 +241,7 @@ class Verify(Cog, name=COG_NAME):
 
         Args:
             ctx: Context object associated with command invocation.
-            member_id: Discord ID of member to approve.
+            member: Associated Member object to approve verification for.
         """
         await self.__proc_exec_approve(ctx, member)
 
@@ -249,7 +264,7 @@ class Verify(Cog, name=COG_NAME):
 
         Args:
             ctx: Context object associated with command invocation.
-            member_id: Discord ID of member to approve.
+            member: Associated Member object to reject verification for.
             reason: Rejection reason.
         """
         await self.__proc_exec_reject(ctx, member, reason)
@@ -293,12 +308,36 @@ class Verify(Cog, name=COG_NAME):
 
         Args:
             ctx: Context object associated with command invocation.
+            member: Member object to retrieve associated ID attachments of.
         """
         try:
             member_data = self.db.get_member_data(member.id)
         except MemberNotFound:
             await member.send("You are not currently being verified.")
         await self.__proc_resend_id(ctx, member, member_data)
+
+    @grp_verify.command(
+        name="manual",
+        help="Manually verify a member with the supplied details.",
+        usage="(Discord ID) __member__ (quote) __name__ (word) __zID/Email__"
+    )
+    @pre(log_attempt())
+    @pre(check(in_admin_channel, notify=True))
+    @pre(check(is_admin_user, notify=True))
+    @pre(log_invoke())
+    @post(log_success())
+    async def cmd_verify_manual(self, ctx, member: Member, name, arg):
+        """Handle verify manual command.
+
+        Add member details to database and grant them the verified rank.
+
+        Args:
+            ctx: Context object associated with command invocation.
+            member: Associated Member object to verify.
+            name: String representing member name.
+            arg: String representing either zID or email.
+        """
+        await self.__proc_verify_manual(ctx, member, name, arg)
 
     @command(name="restart", hidden=True)
     @pre(log_attempt())
@@ -419,19 +458,7 @@ class Verify(Cog, name=COG_NAME):
         try:
             member_data = self.db.get_member_data(member.id)
         except MemberNotFound:
-            self.db.set_member_data(member.id, {
-                MemberKey.NAME: None,
-                MemberKey.ZID: None,
-                MemberKey.EMAIL: None,
-                MemberKey.EMAIL_ATTEMPTS: 0,
-                MemberKey.EMAIL_VER: False,
-                MemberKey.ID_MESSAGE: None,
-                MemberKey.ID_VER: False,
-                MemberKey.VER_EXEC: None,
-                MemberKey.VER_STATE: None,
-                MemberKey.VER_TIME: time(),
-                MemberKey.MAX_EMAIL_ATTEMPTS: MAX_VER_EMAILS
-            })
+            self.db.set_member_data(member.id, make_def_member_data())
         else:
             if member_data[MemberKey.ID_VER]:
                 LOG.info(f"Member {member} was already verified. "
@@ -571,8 +598,7 @@ class Verify(Cog, name=COG_NAME):
         Args:
             member: Member object to make request to.
         """
-        await member.send("What is your 7 digit student number, "
-            "not including the 'z' at the start?")
+        await member.send("What is your zID?")
     
     @pre(log_invoke())
     @post(log_success())
@@ -587,19 +613,11 @@ class Verify(Cog, name=COG_NAME):
             member_data: Dict containing data from member entry in database.
             message: Message object received from member.
         """
-        zid = message.content
-        ZID_LEN = 7
-        if len(zid) != ZID_LEN:
-            await member.send(f"Your response must be {ZID_LEN} "
-                "characters long. Please try again.")
-            return
-        try:
-            zid = int(zid)
-        except ValueError:
-            await member.send("Your response must be an integer. "
-                "Please try again.")
-            return
-        email = f"z{zid}@student.unsw.edu.au"
+        zid = message.content.lower()
+        if not is_valid_zid(zid):
+            await member.send(f"Your zID must match the following format: "
+                "`zXXXXXXX`. Please try again")
+        email = f"{zid}@student.unsw.edu.au"
 
         self.db.update_member_data(member.id, {
             MemberKey.ZID: zid,
@@ -721,6 +739,9 @@ class Verify(Cog, name=COG_NAME):
         if member_data[MemberKey.ZID] is None:
             await self.__proc_request_id(member)
         else:
+            self.db.update_member_data(member.id, {
+                MemberKey.ID_VER: True
+            })
             await self.__proc_grant_rank(member)
 
     @pre(log_invoke())
@@ -822,6 +843,7 @@ class Verify(Cog, name=COG_NAME):
             member: Member object to approve verification for.
         """
         self.db.update_member_data(member.id, {
+            MemberKey.ID_VER: True,
             MemberKey.VER_EXEC: ctx.author.id
         })
         await self.__proc_grant_rank(member)
@@ -912,15 +934,48 @@ class Verify(Cog, name=COG_NAME):
 
     @pre(log_invoke())
     @post(log_success())
+    async def __proc_verify_manual(self, ctx, member, name, arg):
+        """Add member details to database and grant them the verified rank.
+
+        Verified rank defined in config.
+
+        Args:
+            ctx: Context object associated with command invocation.
+            member: Associated Member object to verify.
+            name: String representing member name.
+            arg: String representing either zID or email.
+        """
+        member_data = make_def_member_data()
+        member_data.update({
+            MemberKey.NAME: name,
+            MemberKey.EMAIL_VER: True,
+            MemberKey.ID_VER: True,
+            MemberKey.VER_EXEC: ctx.author.id
+        })
+        if is_valid_zid(arg):
+            member_data.update({
+                MemberKey.ZID: arg, 
+                MemberKey.EMAIL: f"{arg}@student.unsw.edu.au"
+            })
+        elif is_valid_email(arg):
+            member_data.update({MemberKey.EMAIL: arg})
+        else:
+            await self.admin_channel.send("That is neither a valid zID nor "
+                "a valid email.")
+            return
+        await self.db.set_member_data(member.id, member_data)
+        await self.__proc_grant_rank(member)
+
+    @pre(log_invoke())
+    @post(log_success())
     async def __proc_grant_rank(self, member):
         """Grant verified rank to member and notify them and execs.
 
-        Verified rank is defined in the cofig.
+        Verified rank defined in cofig.
 
         Args:
             member: Member object to grant verified rank to.
         """
-        self.db.update_member_data(member.id, {MemberKey.ID_VER: True})
         await member.add_roles(self.guild.get_role(VER_ROLE))
         LOG.info(f"Granted verified rank to member '{member.id}'")
         await member.send("You are now verified. Welcome to the server!")
