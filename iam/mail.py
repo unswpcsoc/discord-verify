@@ -98,8 +98,6 @@ def is_valid_email(email):
 
 class Mail(Cog, name=COG_NAME):
     """Handle email functions"""
-    CHARSET = "UTF-8"
-    """String representing encoding used for emails."""
 
     def __init__(self, logger):
         """Init cog and connect to Amazon SES."""
@@ -125,12 +123,12 @@ class Mail(Cog, name=COG_NAME):
                 Message={
                     "Body": {
                         "Text": {
-                            "Charset": self.CHARSET,
+                            "Charset": "UTF-8",
                             "Data": body_text
                         }
                     },
                     "Subject": {
-                        "Charset": self.CHARSET,
+                        "Charset": "UTF-8",
                         "Data": subject
                     }
                 },
