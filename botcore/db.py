@@ -40,6 +40,7 @@ class MemberKey():
     ZID = "zid"
     EMAIL = "email"
     EMAIL_VER = "email_verified"
+    ID_MESSAGE = "id_message"
     ID_VER = "id_verified"
 
 class SecretID():

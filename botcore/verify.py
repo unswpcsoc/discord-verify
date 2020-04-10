@@ -27,6 +27,7 @@ from enum import IntEnum
 from functools import wraps
 import hmac
 from discord.ext import commands
+from discord import NotFound
 
 import botcore.perms
 from botcore.db import MemberKey, SecretID, MemberNotFound
@@ -34,7 +35,7 @@ from botcore.mail import MailError
 from botcore.config import config
 
 def _next_state(state):
-    """Decorate function to trigger state change on completion.
+    """Decorate method to trigger state change on completion.
 
     Used with the Verify class to implement a finite state machine.
 
@@ -50,6 +51,29 @@ def _next_state(state):
             self.verifying[member.id].update(patch)
         return wrapper
     return decorator
+
+def _awaiting_approval(func):
+    """Decorate method to only execute if member is awaiting approval.
+
+    If not, send error message to admin channel defined in config.
+
+    Used with the Verify class.
+    """
+    @wraps(func)
+    async def wrapper(self, member, *args):
+        if member.id not in self.verifying:
+            await self.admin_channel.send("That user is not currently "
+                "undergoing verification.")
+            return
+        
+        if self.verifying[member.id][MemberKey.STATE] \
+            != self.State.AWAIT_APPROVAL:
+            await self.admin_channel.send("That user is not awaiting "
+                "approval.")
+            return
+        
+        await func(self, member, *args)
+    return wrapper
 
 class Verify(commands.Cog):
     """Handle automatic verification of server members.
@@ -99,6 +123,10 @@ class Verify(commands.Cog):
     @property
     def guild(self):
         return self.bot.get_guild(config["server-id"])
+
+    @property
+    def admin_channel(self):
+        return self.guild.get_channel(config["admin-channel"])
 
     @property
     def db(self):
@@ -169,7 +197,6 @@ class Verify(commands.Cog):
             reason: Rejection reason.
         """
         member = self.guild.get_member(member_id)
-        reason = " ".join(reason)
         await self.__proc_exec_reject(member, reason)
 
     @grp_verify.command(name="pending")
@@ -187,6 +214,20 @@ class Verify(commands.Cog):
         """
         await self.__proc_display_pending()
 
+    @grp_verify.command(name="check")
+    @botcore.perms.in_admin_channel(error=True)
+    @botcore.perms.is_admin_user(error=True)
+    async def cmd_verify_check(self, ctx, member_id: int):
+        """Handle verify check command.
+
+        Resend ID attachments from member to admin channel defined in config.
+
+        Args:
+            ctx: Context object associated with command invocation.
+        """
+        member = self.guild.get_member(member_id)
+        await self.__proc_resend_id(member)
+
     @commands.command(name="restart")
     @botcore.perms.in_dm_channel()
     @botcore.perms.is_guild_member(error=True)
@@ -195,7 +236,7 @@ class Verify(commands.Cog):
         """Handle restart command.
 
         Restart verification process for member that invoked it, if they are
-        currently undergoing verification.
+        undergoing verification.
 
         Args:
             ctx: Context object associated with command invocation.
@@ -289,6 +330,7 @@ class Verify(commands.Cog):
             MemberKey.ZID: None,
             MemberKey.EMAIL: None,
             MemberKey.EMAIL_VER: False,
+            MemberKey.ID_MESSAGE: None,
             MemberKey.ID_VER: False
         }
         self.verifying[member.id] = default_data
@@ -528,10 +570,10 @@ class Verify(commands.Cog):
             return
         
         async with member.typing():
-            await self.__proc_send_id_admins(member, attachments)
+            await self.__proc_forward_id_admins(member, attachments)
 
     @_next_state(State.AWAIT_APPROVAL)
-    async def __proc_send_id_admins(self, member, attachments):
+    async def __proc_forward_id_admins(self, member, attachments):
         """Forward member ID attachments to admin channel.
 
         Proceed to await exec approval or rejection of member.
@@ -540,16 +582,18 @@ class Verify(commands.Cog):
             member: Member object that sent attachments.
             attachments: List of Attachment objects received from member.
         """
-        first_file = await attachments[0].to_file()
-        admin_channel = self.guild.get_channel(config["admin-channel"])
+        files = [await a.to_file() for a in attachments]
         full_name = self.verifying[member.id][MemberKey.NAME]
-        await admin_channel.send(f"Received attachment from {member.mention}. "
-            f"Please verify that name on ID is `{full_name}`, "
-            f"then type `!verify approve {member.id}` "
-            f"or `!verify reject {member.id} \"reason\"`.", file=first_file)
+        message = await self.admin_channel.send("Received attachment(s) from "
+            f"{member.mention}. Please verify that name on ID is "
+            f"`{full_name}`, then type `!verify approve {member.id}` "
+            f"or `!verify reject {member.id} \"reason\"`.", files=files)
 
-        await member.send("Your attachment has been forwarded to the execs. "
-            "Please wait.")
+        await member.send("Your attachment has been forwarded to "
+            "the execs. Please wait.")
+        patch = {MemberKey.ID_MESSAGE: message.id}
+        self.db.update_member_data(member.id, patch)
+        self.verifying[member.id].update(patch)
 
     async def __state_await_approval(self, member, message):
         """Handle message received from member while awaiting exec approval.
@@ -562,55 +606,27 @@ class Verify(commands.Cog):
         """
         pass
 
+    @_awaiting_approval
     async def __proc_exec_approve(self, member):
         """Approve member awaiting exec approval.
-
-        Will send error message if member not undergoing verification or not 
-        awaiting exec approval.
 
         Proceed to grant member verified rank.
 
         Args:
             member: Member object to approve verification for.
         """
-        admin_channel = self.guild.get_channel(config["admin-channel"])
-        if member.id not in self.verifying:
-            await admin_channel.send("That user is not currently "
-                "undergoing verification.")
-            return
-
-        if self.verifying[member.id][MemberKey.STATE] \
-            != self.State.AWAIT_APPROVAL:
-            await admin_channel.send("That user is still "
-                "undergoing verification.")
-            return
-
         await self.__proc_grant_rank(member)
 
+    @_awaiting_approval
     async def __proc_exec_reject(self, member, reason):
         """Reject member awaiting exec approval and send them reason.
 
         Deletes member from the database.
 
-        Will send error message if member not undergoing verification or not 
-        awaiting exec approval.
-
         Args:
             member: Member object to reject verification for.
             reason: String representing rejection reason.
         """
-        admin_channel = self.guild.get_channel(config["admin-channel"])
-        if member.id not in self.verifying:
-            await admin_channel.send("That user is not currently "
-                "undergoing verification.")
-            return
-
-        if self.verifying[member.id][MemberKey.STATE] \
-            != self.State.AWAIT_APPROVAL:
-            await admin_channel.send("That user is still "
-                "undergoing verification.")
-            return
-        
         self.db.delete_member_data(member.id, must_exist=False)
         del self.verifying[member.id]
 
@@ -619,8 +635,7 @@ class Verify(commands.Cog):
             "You can start a new request by typing `!verify` in the "
             "verification channel.")
 
-        admin_channel = self.guild.get_channel(config["admin-channel"])
-        await admin_channel.send("Rejected verification request from "
+        await self.admin_channel.send("Rejected verification request from "
             f"{member.mention}.")
 
     async def __proc_display_pending(self):
@@ -633,15 +648,44 @@ class Verify(commands.Cog):
             if self.verifying[member_id][MemberKey.STATE] \
                 == self.State.AWAIT_APPROVAL:
                 member = self.guild.get_member(member_id)
-                mentions.append(member.mention)
+                mentions.append(f"{member.mention}: {member_id}")
         
-        admin_channel = self.guild.get_channel(config["admin-channel"])
         if len(mentions) == 0:
-            await admin_channel.send("No members currently awaiting approval.")
+            await self.admin_channel.send("No members currently awaiting "
+            "approval.")
 
         mentions_formatted = "\n".join(mentions)
-        await admin_channel.send("__Members awaiting approval:__\n"
+        await self.admin_channel.send("__Members awaiting approval:__\n"
             f"{mentions_formatted}")
+
+    @_awaiting_approval
+    async def __proc_resend_id(self, member):
+        """Resend ID attachments from member to admin channel.
+
+        Admin channel defined in config.
+
+        Retrieves attachments from previous message in admin channel.
+
+        Send error message if previous message was deleted.
+
+        Args:
+            member: Member object to retrieve ID attachments from.
+        """
+        message_id = self.verifying[member.id][MemberKey.ID_MESSAGE]
+        try:
+            message = await self.admin_channel.fetch_message(message_id)
+        except NotFound:
+            await self.admin_channel.send("Could not find previous message in "
+            "this channel containing attachments! Perhaps it was deleted?")
+            return
+        attachments = message.attachments
+
+        files = [await a.to_file() for a in attachments]
+        full_name = self.verifying[member.id][MemberKey.NAME]
+        await self.admin_channel.send("Previously received attachment(s) from "
+            f"{member.mention}. Please verify that name on ID is "
+            f"`{full_name}`, then type `!verify approve {member.id}` "
+            f"or `!verify reject {member.id} \"reason\"`.", files=files)
 
     async def __proc_grant_rank(self, member):
         """Grant verified rank to member and notify them and execs.
@@ -657,5 +701,4 @@ class Verify(commands.Cog):
             del self.verifying[member.id]
         await member.send("You are now verified. Welcome to the server!")
 
-        admin_channel = self.guild.get_channel(config["admin-channel"])
-        await admin_channel.send(f"{member.mention} is now verified.")
+        await self.admin_channel.send(f"{member.mention} is now verified.")
