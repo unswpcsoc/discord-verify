@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 """MIT License
 
 Copyright (c) 2020 Computer Enthusiasts Society
@@ -23,28 +21,30 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-"""Launches the Discord bot."""
+"""Handle loading config file."""
 
-from discord.ext import commands
+import yaml
 
-import iam.perms
-from iam.config import config
-from iam.core import Core
-from iam.db import Database
-from iam.mail import Mail
-from iam.verify import Verify
-from iam.sign import Sign
+class ConfigFileNotFound(FileNotFoundError):
+    """Config file does not exist."""
+    pass
 
-def main():
-    bot = commands.Bot(command_prefix=config["command-prefix"])
+CONFIG_DIR = "config"
+CONFIG_FILE = f"{CONFIG_DIR}/config.yml"
 
-    bot.load_extension("iam.core")
-    bot.load_extension("iam.db")
-    bot.load_extension("iam.mail")
-    bot.load_extension("iam.verify")
-    bot.load_extension("iam.sign")
-
-    bot.run(config["bot-token"])
-
-if __name__ == "__main__":
-    main()
+try:
+    with open(CONFIG_FILE, "r", encoding="utf-8") as fs:
+        config = yaml.load(fs)
+    PREFIX = config["command-prefix"]
+    SERVER_ID = config["server-id"]
+    VER_ROLE = config["verified-role"]
+    ALLOW_CHANNELS = config["allowed-channels"]
+    ADMIN_CHANNEL = config["admin-channel"]
+    ADMIN_ROLES = config["admin-roles"]
+    EMAIL = config["email-address"]
+    AWS_REGION = config["aws-region"]
+    AWS_ACCESS_KEY_ID = config["aws-access-key-id"]
+    AWS_SECRET_ACCESS_KEY = config["aws-secret-access-key"]
+except IOError as err:
+    raise ConfigFileNotFound("Can't find config file! Create a config.yml "
+        "file in the config directory with similar structure to default.yml.")

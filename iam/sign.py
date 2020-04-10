@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 """MIT License
 
 Copyright (c) 2020 Computer Enthusiasts Society
@@ -23,28 +21,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-"""Launches the Discord bot."""
+"""Currently unimplemented."""
 
 from discord.ext import commands
 
-import iam.perms
-from iam.config import config
-from iam.core import Core
-from iam.db import Database
-from iam.mail import Mail
-from iam.verify import Verify
-from iam.sign import Sign
+def setup(bot):
+    """Add Sign cog to bot.
 
-def main():
-    bot = commands.Bot(command_prefix=config["command-prefix"])
+    Args:
+        bot: Bot object to add cog to.
+    """
+    bot.add_cog(Sign(bot))
 
-    bot.load_extension("iam.core")
-    bot.load_extension("iam.db")
-    bot.load_extension("iam.mail")
-    bot.load_extension("iam.verify")
-    bot.load_extension("iam.sign")
-
-    bot.run(config["bot-token"])
-
-if __name__ == "__main__":
-    main()
+class Sign(commands.Cog):
+    """Currently unimplemented."""
+    def __init__(self, bot):
+        self.bot = bot

@@ -27,7 +27,17 @@ import boto3
 from botocore.exceptions import ClientError
 from discord.ext import commands
 
-from botcore.config import config
+from iam.config import (
+    EMAIL, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+)
+
+def setup(bot):
+    """Add Mail cog to bot.
+
+    Args:
+        bot: Bot object to add cog to.
+    """
+    bot.add_cog(Mail())
 
 class MailError(Exception):
     """Email failed to send."""
@@ -68,7 +78,7 @@ class Mail(commands.Cog):
                         "Data": subject
                     }
                 },
-                Source=config["email-address"]
+                Source=EMAIL
             )
             print(f"Email {response['MessageId']} sent to {recipient}")
         except ClientError:
@@ -81,8 +91,8 @@ class Mail(commands.Cog):
         """
         self.client = boto3.client(
             'ses',
-            region_name=config["aws-region"],
-            aws_access_key_id=config["aws-access-key-id"],
-            aws_secret_access_key=config["aws-secret-access-key"]
+            region_name=AWS_REGION,
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY
         )
         print("Connected to Amazon SES")
