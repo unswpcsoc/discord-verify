@@ -61,12 +61,12 @@ class Mail(commands.Cog):
                 Message={
                     "Body": {
                         "Text": {
-                            "Charset": self.CHARSET,
+                            "Charset": "UTF-8",
                             "Data": body_text
                         }
                     },
                     "Subject": {
-                        "Charset": self.CHARSET,
+                        "Charset": "UTF-8",
                         "Data": subject
                     }
                 },
