@@ -2,7 +2,6 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import google.cloud.exceptions
 from secrets import token_bytes
-
 from discord.ext import commands
 
 class MemberNotFound(Exception):
@@ -24,8 +23,7 @@ class Database(commands.Cog):
     COL_MEMBERS = "members"
     COL_SECRETS = "secrets"
 
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self):
         self.db = None
         self._connect()
 
