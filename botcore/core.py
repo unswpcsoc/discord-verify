@@ -46,11 +46,22 @@ class Core(commands.Cog):
         """Print message to console on bot startup."""
         print(f"Bot running with command prefix '{self.bot.command_prefix}'")
 
-    @commands.command(name="verifyexit")
+    @commands.group(name="iam")
+    async def cmd_iam(self, ctx):
+        """Register iam command group.
+
+        Args:
+            ctx: Context object associated with command invocation.
+        """
+        pass
+
+    @cmd_iam.command(name="exit")
     @botcore.perms.in_admin_channel(error=True)
     @botcore.perms.is_admin_user(error=True)
-    async def cmd_verifyexit(self, ctx):
-        """Gracefully log out and shut down the bot.
+    async def cmd_iam_exit(self, ctx):
+        """Handle iam exit command.
+        
+        Gracefully log out and shut down the bot.
 
         Args:
             ctx: Context object associated with command invocation.
