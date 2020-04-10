@@ -117,6 +117,15 @@ class Verify(commands.Cog):
         return self.__secret_
 
     @commands.group(name="verify")
+    async def grp_verify(self, ctx):
+        """Register verify command group.
+        
+        Args:
+            ctx: Context object associated with command invocation.
+        """
+        if ctx.invoked_subcommand is None:
+            await self.cmd_verify(ctx)
+
     @botcore.perms.in_allowed_channel(error=True)
     @botcore.perms.is_unverified_user(error=True)
     async def cmd_verify(self, ctx):
@@ -128,14 +137,13 @@ class Verify(commands.Cog):
         Args:
             ctx: Context object associated with command invocation.
         """
-        if ctx.invoked_subcommand is None:
-            await self.__proc_begin(ctx.author)
+        await self.__proc_begin(ctx.author)
 
-    @cmd_verify.command(name="approve")
+    @grp_verify.command(name="approve")
     @botcore.perms.in_admin_channel(error=True)
     @botcore.perms.is_admin_user(error=True)
     async def cmd_verify_approve(self, ctx, member_id: int):
-        """Handle execapprove command.
+        """Handle verify approve command.
 
         Grant member verified rank, if they are currently awaiting exec
         approval.
@@ -146,11 +154,11 @@ class Verify(commands.Cog):
         """
         await self.__proc_exec_approve(self.guild.get_member(member_id))
 
-    @cmd_verify.command(name="reject")
+    @grp_verify.command(name="reject")
     @botcore.perms.in_admin_channel(error=True)
     @botcore.perms.is_admin_user(error=True)
     async def cmd_verify_reject(self, ctx, member_id: int, *, reason: str):
-        """Handle execreject command.
+        """Handle verify reject command.
 
         Reject member for verification and delete them from database, if they
         are currently awaiting exec approval.
@@ -163,6 +171,21 @@ class Verify(commands.Cog):
         member = self.guild.get_member(member_id)
         reason = " ".join(reason)
         await self.__proc_exec_reject(member, reason)
+
+    @grp_verify.command(name="pending")
+    @botcore.perms.in_admin_channel(error=True)
+    @botcore.perms.is_admin_user(error=True)
+    async def cmd_verify_pending(self, ctx):
+        """Handle verify pending command.
+
+        Display list of members currently awaiting exec approval.
+
+        Message will be sent to admin channel defined in config.
+
+        Args:
+            ctx: Context object associated with command invocation.
+        """
+        await self.__proc_display_pending()
 
     @commands.command(name="restart")
     @botcore.perms.in_dm_channel()
@@ -599,6 +622,26 @@ class Verify(commands.Cog):
         admin_channel = self.guild.get_channel(config["admin-channel"])
         await admin_channel.send("Rejected verification request from "
             f"{member.mention}.")
+
+    async def __proc_display_pending(self):
+        """Display list of members currently awaiting exec approval.
+
+        Message will be sent to admin channel defined in config.
+        """
+        mentions = []
+        for member_id in self.verifying:
+            if self.verifying[member_id][MemberKey.STATE] \
+                == self.State.AWAIT_APPROVAL:
+                member = self.guild.get_member(member_id)
+                mentions.append(member.mention)
+        
+        admin_channel = self.guild.get_channel(config["admin-channel"])
+        if len(mentions) == 0:
+            await admin_channel.send("No members currently awaiting approval.")
+
+        mentions_formatted = "\n".join(mentions)
+        await admin_channel.send("__Members awaiting approval:__\n"
+            f"{mentions_formatted}")
 
     async def __proc_grant_rank(self, member):
         """Grant verified rank to member and notify them and execs.

@@ -47,7 +47,7 @@ class Core(commands.Cog):
         print(f"Bot running with command prefix '{self.bot.command_prefix}'")
 
     @commands.group(name="iam")
-    async def cmd_iam(self, ctx):
+    async def grp_iam(self, ctx):
         """Register iam command group.
 
         Args:
@@ -55,7 +55,7 @@ class Core(commands.Cog):
         """
         pass
 
-    @cmd_iam.command(name="exit")
+    @grp_iam.command(name="exit")
     @botcore.perms.in_admin_channel(error=True)
     @botcore.perms.is_admin_user(error=True)
     async def cmd_iam_exit(self, ctx):
