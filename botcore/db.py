@@ -1,11 +1,23 @@
 import firebase_admin
 from firebase_admin import credentials, firestore
 import google.cloud.exceptions
+from secrets import token_bytes
 
 from discord.ext import commands
 
 class MemberNotFound(Exception):
     pass
+
+class MemberKey():
+    STATE = "_state"
+    NAME = "full_name"
+    ZID = "zid"
+    EMAIL = "email"
+    EMAIL_VER = "email_verified"
+    ID_VER = "id_verified"
+
+class SecretID():
+    VERIFY = "verify"
 
 class Database(commands.Cog):
     CERTIFICATE_FILE = "config/firebase_credentials.json"
@@ -47,7 +59,7 @@ class Database(commands.Cog):
 
         unverified = {}
         docs = self._get_members_col() \
-            .where("id_verified", "==", False).stream()
+            .where(MemberKey.ID_VER, "==", False).stream()
         for doc in docs:
             member_id = int(doc.id)
             member_data = doc.to_dict()
@@ -82,7 +94,7 @@ class Database(commands.Cog):
 
         Raises:
             MemberNotFound: If the member does not exist in the database and
-                must_exist == False.
+                must_exist == True.
         """
 
         try:
@@ -90,33 +102,53 @@ class Database(commands.Cog):
         except google.cloud.exceptions.NotFound:
             raise MemberNotFound
 
+    def delete_member_data(self, id, must_exist=True):
+        """
+        Delete entry for a member in the database.
+
+        By default, will raise an exception if the member does not exist in the
+        database.
+
+        Args:
+            id: Discord ID of a member.
+            must_exist: If the member must exist in the database. If False,
+                will not raise an exception if they don't.
+
+        Raises:
+            MemberNotFound: If the member does not exist in the database and
+                must_exist == True.
+        """
+
+        doc = self._get_member_doc(id)
+        if must_exist and doc.get().to_dict() is None:
+            raise MemberNotFound
+        doc.delete()
+
     def get_secret(self, id):
         """
         Retrieve entry for a secret from the database.
+        If no such secret exists, generate one.
         
         Args:
             id: ID of a secret.
 
         Returns:
-            Secret bytes associated with id or None if no such secret exists.
+            Secret bytes associated with id.
         """
 
-        doc = self._get_secrets_col().document(str(id)).get().to_dict()
-        if doc is None:
-            return None
-        return doc["secret"]
-
-    def set_secret(self, id, bytes):
-        """
-        Writes entry for a secret with given id and value bytes to the
-        database.
-
-        Args:
-            id: ID of a secret, to be used as a key.
-            bytes: Value to be associated with id.
-        """
-
-        self._get_secrets_col().document(str(id)).set({"secret": bytes})
+        doc = self._get_secrets_col().document(str(id))
+        data = doc.get().to_dict()
+        
+        if data is not None:
+            secret = data["secret"]
+            print(f"Retrieved '{id}' secret from Firebase")
+        else:
+            print(f"Generating new '{id}' secret...")
+            secret = token_bytes(64)
+            doc.set({"secret": secret})
+            print(f"Saved {id} secret in Firebase")
+        
+        return secret
 
     def _connect(self):
         """
