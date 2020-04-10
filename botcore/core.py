@@ -1,7 +1,4 @@
-#!/usr/bin/env python3
-
-"""
-MIT License
+"""MIT License
 
 Copyright (c) 2020 Computer Enthusiasts Society
 
@@ -24,28 +21,40 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-"""Launches the Discord bot."""
+"""Handle core functions of the bot."""
 
 from discord.ext import commands
 
 import botcore.perms
-from botcore.config import config
-from botcore.core import Core
-from botcore.db import Database
-from botcore.mail import Mail
-from botcore.verify import Verify
-from botcore.sign import Sign
 
-def main():
-    bot = commands.Bot(command_prefix=config["command-prefix"])
+class Core(commands.Cog):
+    """Handle core functions of the bot.
 
-    bot.add_cog(Core(bot))
-    bot.add_cog(Database())
-    bot.add_cog(Mail())
-    bot.add_cog(Verify(bot))
-    bot.add_cog(Sign(bot))
+    Attributes:
+        bot: Bot object that registered this cog.
+    """
+    def __init__(self, bot):
+        """Initialise cog with given bot.
 
-    bot.run(config["bot-token"])
+        Args:
+            bot: Bot object that registered this cog.
+        """
+        self.bot = bot
 
-if __name__ == "__main__":
-    main()
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """Print message to console on bot startup."""
+        print(f"Bot running with command prefix '{self.bot.command_prefix}'")
+
+    @commands.command(name="verifyexit")
+    @botcore.perms.in_admin_channel(error=True)
+    @botcore.perms.is_admin_user(error=True)
+    async def cmd_verifyexit(self, ctx):
+        """Gracefully log out and shut down the bot.
+
+        Args:
+            ctx: Context object associated with command invocation.
+        """
+        await ctx.send("I am shutting down...")
+        await self.bot.logout()
+        print("Successfully logged out. Exiting...")
