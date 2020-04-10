@@ -35,8 +35,6 @@ class MailError(Exception):
 
 class Mail(commands.Cog):
     """Handle email functions"""
-    CHARSET = "UTF-8"
-    """String representing encoding used for emails."""
 
     def __init__(self):
         """Init cog and connect to Amazon SES."""
