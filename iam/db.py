@@ -31,7 +31,7 @@ from time import time
 from secrets import token_bytes
 from discord.ext.commands import Cog
 
-from iam.config import MAX_VER_EMAILS
+from iam.config import CONFIG_DIR, MAX_VER_EMAILS
 from iam.log import new_logger
 from iam.hooks import pre, post, log_invoke, log_success
 
@@ -41,7 +41,7 @@ LOG = None
 COG_NAME = "Database"
 """Name of this module's cog."""
 
-CERTIFICATE_FILE = "config/firebase_credentials.json"
+CERTIFICATE_FILE = f"{CONFIG_DIR}/firebase_credentials.json"
 """Location of Firebase certificate file."""
 
 COL_MEMBERS = "members"
@@ -59,7 +59,7 @@ def setup(bot):
     global LOG
     LOG = new_logger(__name__)
     LOG.debug(f"Setting up {__name__} extension...")
-    cog = Database(LOG)
+    cog = Database(CERTIFICATE_FILE, LOG)
     LOG.debug(f"Initialised {COG_NAME} cog")
     bot.add_cog(cog)
     LOG.debug(f"Added {COG_NAME} cog to bot")
@@ -142,10 +142,10 @@ class Database(Cog):
     Attributes:
         db: Connected Firestore Client.
     """
-    def __init__(self, logger):
+    def __init__(self, certificate_file, logger):
         """Init cog and connect to Firestore."""
         LOG.debug(f"Initialising {COG_NAME} cog...")
-        self.db = firestore_connect()
+        self.db = firestore_connect(certificate_file)
         self.logger = logger
 
     @pre(log_invoke(level=DEBUG))
@@ -301,7 +301,7 @@ class Database(Cog):
         """
         return self.db.collection(COL_SECRETS)
 
-def firestore_connect():
+def firestore_connect(certificate_file):
     """Connect to Firestore.
     
     Required for all other methods to function.
@@ -310,7 +310,7 @@ def firestore_connect():
         Firestore client object.
     """
     LOG.debug("Logging in to Firebase...")
-    cred = credentials.Certificate(CERTIFICATE_FILE)
+    cred = credentials.Certificate(certificate_file)
     firebase_admin.initialize_app(cred)
     client = firestore.client()
     LOG.info("Logged in to Firebase")
