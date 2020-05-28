@@ -638,6 +638,7 @@ class Verify(Cog, name=COG_NAME):
         if not is_valid_zid(zid):
             await member.send(f"Your zID must match the following format: "
                 "`zXXXXXXX`. Please try again")
+            return
         email = f"{zid}@student.unsw.edu.au"
 
         self.db.update_member_data(member.id, {
