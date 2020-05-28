@@ -117,6 +117,28 @@ def _next_state(state):
         return wrapper
     return decorator
 
+def is_verifying_user(cog, ctx, *func_args, **func_kwargs):
+    """Checks that user that invoked function is undergoing verification.
+
+    Associated cog must have db as an instance variable.
+
+    Args:
+        func: Function invoked.
+        cog: Cog associated with function invocation.
+        ctx: Context object associated with function invocation.
+
+    Raises:
+        CheckFailed: If invoker does not have verified role.
+    """
+    try:
+        member_data = cog.db.get_member_data(ctx.author.id)
+    except MemberNotFound:
+        return False, "You are not currently being verified."
+    if member_data[MemberKey.VER_STATE] is None:
+        return False, "You are not currently being verified."
+    elif member_data[MemberKey.ID_VER]:
+        return False, "You are already verified."
+
 def _awaiting_approval(cog, ctx, member, *func_args, **func_kwargs):
     """Raises exception if member is not awaiting approval.
     
@@ -255,8 +277,7 @@ class Verify(Cog, name=COG_NAME):
     @pre(check(is_admin_user, notify=True))
     @pre(log_invoke())
     @post(log_success())
-    async def cmd_verify_reject(self, ctx, member: Member, 
-        *, reason: str):
+    async def cmd_verify_reject(self, ctx, member: Member, *, reason: str):
         """Handle verify reject command.
 
         Reject member for verification and delete them from database, if they
@@ -310,11 +331,7 @@ class Verify(Cog, name=COG_NAME):
             ctx: Context object associated with command invocation.
             member: Member object to retrieve associated ID attachments of.
         """
-        try:
-            member_data = self.db.get_member_data(member.id)
-        except MemberNotFound:
-            await member.send("You are not currently being verified.")
-        await self.__proc_resend_id(ctx, member, member_data)
+        await self.__proc_resend_id(ctx, member)
 
     @grp_verify.command(
         name="manual",
@@ -362,6 +379,7 @@ class Verify(Cog, name=COG_NAME):
     @pre(check(in_dm_channel))
     @pre(check(is_guild_member, notify=True))
     @pre(check(is_unverified_user))
+    @pre(check(is_verifying_user))
     @pre(log_invoke())
     @post(log_success())
     async def cmd_resend(self, ctx):
@@ -373,12 +391,8 @@ class Verify(Cog, name=COG_NAME):
         Args:
             ctx: Context object associated with command invocation.
         """
-        member = self.guild.get_member(ctx.author.id)
-        try:
-            member_data = self.db.get_member_data(member.id)
-        except MemberNotFound:
-            await member.send("You are not currently being verified.")
-        await self.__proc_resend_email(member, member_data)
+        member_data = self.db.get_member_data(ctx.author.id)
+        await self.__proc_resend_email(ctx.author, member_data)
 
     @Cog.listener()
     @pre(check(is_human, level=None))
@@ -393,14 +407,12 @@ class Verify(Cog, name=COG_NAME):
         Args:
             member: Member object that joined the server.
         """
-        await self.__proc_grant_rank(member)
-        await self.admin_channel.send(f"{member.mention} was previously "
-            "verified, and has automatically been granted the verified rank "
-            "upon (re)joining the server.")
+        await self.__proc_rejoin_verified(member)
 
     @Cog.listener()
     @pre(check(is_human, level=None))
     @pre(check(in_dm_channel, level=None))
+    @pre(check(is_not_command, level=None))
     @pre(check(is_guild_member, level=None))
     @pre(check(is_unverified_user, level=None))
     @pre(log_invoke(meta="verifying"))
@@ -413,16 +425,8 @@ class Verify(Cog, name=COG_NAME):
         Args:
             message: Message object received.
         """
-        if message.content == "?restart" or message.content == "?resend":
-            return
         member = self.guild.get_member(message.author.id)
-        try:
-            member_data = self.db.get_member_data(member.id)
-        except MemberNotFound:
-            return
-        if not member_data[MemberKey.ID_VER]:
-            state = member_data[MemberKey.VER_STATE]
-            await self.__state_handler[state](member, member_data, message)
+        await self.__proc_handle_state(member, message)
 
     @pre(log_invoke(level=DEBUG))
     @post(log_success())
@@ -439,6 +443,23 @@ class Verify(Cog, name=COG_NAME):
         secret = self.db.get_secret(SecretID.VERIFY)
         user_bytes = bytes(str(user.id + noise), "utf8")
         return hmac.new(secret, user_bytes, "sha256").hexdigest()
+
+    @pre(log_invoke())
+    @post(log_success())
+    async def __proc_handle_state(self, member, message):
+        """Call current state handler for member upon receiving message.
+
+        Args:
+            member: Member object that sent message.
+            message: Message object sent by member.
+        """
+        try:
+            member_data = self.db.get_member_data(member.id)
+        except MemberNotFound:
+            return
+        if not member_data[MemberKey.ID_VER]:
+            state = member_data[MemberKey.VER_STATE]
+            await self.__state_handler[state](member, member_data, message)
 
     @pre(log_invoke())
     @post(log_success())
@@ -747,10 +768,10 @@ class Verify(Cog, name=COG_NAME):
     @pre(log_invoke())
     @post(log_success())
     async def __proc_resend_email(self, member, member_data):
-        """Resend verification email to member's email address, if sent before.
+        """Resend verification email to user's email address, if sent before.
 
         Args:
-            member: Member object to resend email to.
+            member: User object to resend email to.
             member_data: Dict containing data from member entry in database.
         """
         if not member_data[MemberKey.ID_VER] \
@@ -900,7 +921,7 @@ class Verify(Cog, name=COG_NAME):
     @pre(check(_awaiting_approval, notify=True))
     @pre(log_invoke())
     @post(log_success())
-    async def __proc_resend_id(self, ctx, member, member_data):
+    async def __proc_resend_id(self, ctx, member):
         """Resend ID attachments from member to admin channel.
 
         Admin channel defined in config.
@@ -912,8 +933,13 @@ class Verify(Cog, name=COG_NAME):
         Args:
             ctx: Context object associated with command invocation.
             member: Member object to retrieve ID attachments from.
-            member_data: Dict containing data from member entry in database.
         """
+        try:
+            member_data = self.db.get_member_data(member.id)
+        except MemberNotFound:
+            await member.send("You are not currently being verified.")
+            return
+        
         message_id = member_data[MemberKey.ID_MESSAGE]
         try:
             message = await self.admin_channel.fetch_message(message_id)
@@ -965,6 +991,21 @@ class Verify(Cog, name=COG_NAME):
             return
         await self.db.set_member_data(member.id, member_data)
         await self.__proc_grant_rank(member)
+
+    @pre(log_invoke())
+    @post(log_success())
+    async def __proc_rejoin_verified(self, member):
+        """Regrant previously verified member rank upon rejoining server.
+
+        Verified rank defined in config.
+
+        Args:
+            member: Member object to grant verified rank to.
+        """
+        await self.__proc_grant_rank(member)
+        await self.admin_channel.send(f"{member.mention} was previously "
+            "verified, and has automatically been granted the verified rank "
+            "upon (re)joining the server.")
 
     @pre(log_invoke())
     @post(log_success())
