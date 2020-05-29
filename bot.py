@@ -82,6 +82,9 @@ def main():
             or isinstance(error, DisabledCommand):
             return
 
+        await ctx.send("Oops! I encountered a problem. Please contact an "
+            "admin.")
+
         if hasattr(error, "original"):
             raise error.original
         raise error
