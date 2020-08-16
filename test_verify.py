@@ -4,7 +4,7 @@ import pytest
 from time import time
 from unittest.mock import patch, AsyncMock, MagicMock
 from iam.verify import (
-    State, proc_begin, proc_restart, state_await_name
+    State, proc_begin, proc_restart, state_await_name, state_await_unsw
 )
 from iam.db import MemberKey, MemberNotFound, make_def_member_data
 from iam.config import PREFIX, VER_ROLE
@@ -239,7 +239,7 @@ async def test_proc_restart_already_verified():
 
 @pytest.mark.asyncio
 async def test_state_await_name_standard():
-    """User sending valid name should move on to UNSW student question."""
+    """User sending valid name moves on to UNSW student question."""
     # Setup
     db = MagicMock()
     member = new_mock_user(0)
@@ -280,6 +280,67 @@ async def test_state_await_name_too_long():
     # Ensure user was sent error.
     member.send.assert_awaited_once_with(f"Name must be 500 characters or "
         "fewer. Please try again.")
+
+    # Ensure no side effects occurred.
+    member.add_roles.assert_not_called()
+    db.set_member_data.assert_not_called()
+    db.update_member_data.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_state_await_unsw_yes():
+    """User answering yes moves on to zID question."""
+    # Setup
+    for ans in ["y", "Y", "yes", "Yes", "YES"]:
+        db = MagicMock()
+        member = new_mock_user(0)
+
+        # Call
+        await state_await_unsw(db, member, ans)
+
+        # Ensure user was sent prompt.
+        member.send.awaited_once_with("What is your zID?")
+
+        # Ensure user state updated to awaiting zID.
+        db.update_member_data.assert_called_once_with(member.id,
+            {MemberKey.VER_STATE: State.AWAIT_ZID})
+
+        # Ensure no side effects occurred.
+        member.add_roles.assert_not_called()
+        db.set_member_data.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_state_await_unsw_no():
+    """User answering no moves on to email question."""
+    for ans in ["n", "N", "no", "No", "NO"]:
+        db = MagicMock()
+        member = new_mock_user(0)
+
+        # Call
+        await state_await_unsw(db, member, ans)
+
+        # Ensure user was sent prompt.
+        member.send.awaited_once_with("What is your email address?")
+
+        # Ensure user state updated to awaiting email.
+        db.update_member_data.assert_called_once_with(member.id,
+            {MemberKey.VER_STATE: State.AWAIT_EMAIL})
+
+        # Ensure no side effects occurred.
+        member.add_roles.assert_not_called()
+        db.set_member_data.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_state_await_unsw_unrecognised():
+    """User typing unrecognised response sent error."""
+    db = MagicMock()
+    member = new_mock_user(0)
+    ans = "kek"
+
+    # Call
+    await state_await_unsw(db, member, ans)
+
+    # Ensure user was sent error.
+    member.send.assert_awaited_once_with("Please type `y` or `n`.")
 
     # Ensure no side effects occurred.
     member.add_roles.assert_not_called()
