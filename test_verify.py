@@ -4,7 +4,7 @@ import pytest
 from time import time
 from unittest.mock import patch, AsyncMock, MagicMock
 from iam.verify import (
-    State, proc_begin, proc_restart
+    State, proc_begin, proc_restart, state_await_name
 )
 from iam.db import MemberKey, MemberNotFound, make_def_member_data
 from iam.config import PREFIX, VER_ROLE
@@ -31,7 +31,7 @@ def new_mock_role(id):
     return role
 
 @pytest.mark.asyncio
-async def test_begin_standard():
+async def test_proc_begin_standard():
     """User not undergoing verification can begin verification."""
     # Setup
     db = MagicMock()
@@ -64,7 +64,7 @@ async def test_begin_standard():
     member.add_roles.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_begin_already_verifying():
+async def test_proc_begin_already_verifying():
     """User already undergoing verification sent error."""
     for state in State:
         # Setup
@@ -90,7 +90,7 @@ async def test_begin_already_verifying():
         db.update_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_begin_already_verified():
+async def test_proc_begin_already_verified():
     """User previously verified granted rank immediately."""
     for state in State:
         # Setup
@@ -127,7 +127,7 @@ async def test_begin_already_verified():
         db.update_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_restart_standard():
+async def test_proc_restart_standard():
     """User undergoing verification can restart verification."""
     for state in State:
         # Setup
@@ -168,7 +168,7 @@ async def test_restart_standard():
         db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_restart_never_verifying():
+async def test_proc_restart_never_verifying():
     """User never started verification sent error."""
     # Setup
     db = MagicMock()
@@ -190,7 +190,7 @@ async def test_restart_never_verifying():
     db.update_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_restart_not_verifying():
+async def test_proc_restart_not_verifying():
     """User not undergoing verification sent error."""
     # Setup
     db = MagicMock()
@@ -212,7 +212,7 @@ async def test_restart_not_verifying():
     db.update_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_restart_already_verified():
+async def test_proc_restart_already_verified():
     """User already verified sent error."""
     for state in State:
         # Setup
@@ -236,3 +236,52 @@ async def test_restart_already_verified():
         user.add_roles.assert_not_called()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_state_await_name_standard():
+    """User sending valid name should move on to UNSW student question."""
+    # Setup
+    db = MagicMock()
+    member = new_mock_user(0)
+    full_name = "Test User 0"
+
+    # Call
+    await state_await_name(db, member, full_name)
+
+    # Ensure user entry in database updated correctly.
+    call_args_list = db.update_member_data.call_args_list
+    assert len(call_args_list) == 2
+    call_args = call_args_list[0].args
+    assert call_args == (member.id, {MemberKey.NAME: full_name})
+
+    # Ensure user was sent prompt.
+    member.send.assert_awaited_once_with("Are you a UNSW student? Please type "
+        "`y` or `n`.")
+
+    # Ensure user state updated to awaiting is UNSW.
+    call_args = call_args_list[1].args
+    assert call_args == (member.id, {MemberKey.VER_STATE: State.AWAIT_UNSW})
+
+    # Ensure no side effects occurred.
+    member.add_roles.assert_not_called()
+    db.set_member_data.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_state_await_name_too_long():
+    """User sending name that is too long sent error."""
+    # Setup
+    db = MagicMock()
+    member = new_mock_user(0)
+    full_name = "a" * 501
+
+    # Call
+    await state_await_name(db, member, full_name)
+
+    # Ensure user was sent error.
+    member.send.assert_awaited_once_with(f"Name must be 500 characters or "
+        "fewer. Please try again.")
+
+    # Ensure no side effects occurred.
+    member.add_roles.assert_not_called()
+    db.set_member_data.assert_not_called()
+    db.update_member_data.assert_not_called()
