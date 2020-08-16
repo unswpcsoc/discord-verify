@@ -22,7 +22,7 @@ from iam.hooks import (
     is_not_command
 )
 
-LOG = None
+LOG = new_logger(__name__)
 """Logger for this module."""
 
 COG_NAME = "Verify"
@@ -37,8 +37,6 @@ def setup(bot):
     Args:
         bot: Bot object to add cog to.
     """
-    global LOG
-    LOG = new_logger(__name__)
     LOG.debug(f"Setting up {__name__} extension...")
     cog = Verify(bot, LOG)
     LOG.debug(f"Initialised {COG_NAME} cog")
@@ -46,7 +44,7 @@ def setup(bot):
     LOG.debug(f"Added {COG_NAME} cog to bot")
 
 def teardown(bot):
-    """Remove Verify cog from this bot and remove logging.
+    """Remove Verify cog from this bot.
 
     Args:
         bot: Bot object to remove cog from.
@@ -54,8 +52,6 @@ def teardown(bot):
     LOG.debug(f"Tearing down {__name__} extension")
     bot.remove_cog(COG_NAME)
     LOG.debug(f"Removed {COG_NAME} cog from bot")
-    for handler in LOG.handlers:
-        LOG.removeHandler(handler)
 
 class State(IntEnum):
     """Enum representing all possible states in the Verify FSM."""
@@ -140,8 +136,8 @@ def is_verifying_user(cog, ctx, *func_args, **func_kwargs):
     elif member_data[MemberKey.ID_VER]:
         return False, "You are already verified."
 
-@pre(log_invoke(level=DEBUG))
-@post(log_success())
+@pre(log_invoke(LOG, level=DEBUG))
+@post(log_success(LOG))
 def get_code(db, user, noise):
     """Generate verification code for user.
 
@@ -157,8 +153,8 @@ def get_code(db, user, noise):
     user_bytes = bytes(str(user.id + noise), "utf8")
     return hmac.new(secret, user_bytes, "sha256").hexdigest()
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_begin(db, ver_role, admin_channel, member):
     """Begin verification process for member.
 
@@ -183,7 +179,7 @@ async def proc_begin(db, ver_role, admin_channel, member):
         if member_data[MemberKey.ID_VER]:
             LOG.info(f"Member {member} was already verified. "
                 "Granting rank...")
-            await proc_grant_rank(ver_role, admin_channel, member)
+            await proc_grant_rank(ver_role, admin_channel, member, silent=True)
             await member.send("Our records show you were verified in the "
                 "past. You have been granted the rank once again. Welcome "
                 "back to the server!")
@@ -210,8 +206,8 @@ async def proc_begin(db, ver_role, admin_channel, member):
 
     await proc_request_name(db, member)
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_restart(db, user):
     """Restart verification process for user.
 
@@ -243,8 +239,8 @@ async def proc_restart(db, user):
     await proc_request_name(db, user)
 
 @_next_state(State.AWAIT_NAME)
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_request_name(db, member):
     """DM name request to member and await response.
 
@@ -255,8 +251,8 @@ async def proc_request_name(db, member):
         "government-issued ID?\nYou can restart this verification process "
         f"at any time by typing `{PREFIX}restart`.")
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def state_await_name(db, member, member_data, message):
     """Handle message received from member while awaiting name.
 
@@ -279,8 +275,8 @@ async def state_await_name(db, member, member_data, message):
     await proc_request_unsw(db, member)
 
 @_next_state(State.AWAIT_UNSW)
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_request_unsw(db, member):
     """DM is UNSW? request to member and await response.
 
@@ -289,8 +285,8 @@ async def proc_request_unsw(db, member):
     """
     await member.send("Are you a UNSW student? Please type `y` or `n`.")
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def state_await_unsw(db, member, member_data, message):
     """Handle message received from member while awaiting is UNSW?.
 
@@ -313,8 +309,8 @@ async def state_await_unsw(db, member, member_data, message):
         await member.send("Please type `y` or `n`.")
 
 @_next_state(State.AWAIT_ZID)
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_request_zid(db, member):
     """DM zID request to member and await response.
 
@@ -323,8 +319,8 @@ async def proc_request_zid(db, member):
     """
     await member.send("What is your zID?")
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def state_await_zid(db, mail, member, member_data, message):
     """Handle message received from member while awaiting zID.
 
@@ -353,8 +349,8 @@ async def state_await_zid(db, mail, member, member_data, message):
     await proc_send_email(db, mail, member, member_data, email)
 
 @_next_state(State.AWAIT_EMAIL)
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_request_email(db, member):
     """DM email address request to member and await response.
 
@@ -363,8 +359,8 @@ async def proc_request_email(db, member):
     """
     await member.send("What is your email address?")
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def state_await_email(db, mail, member, member_data, message):
     """Handle message received from member while awaiting email address.
 
@@ -385,8 +381,8 @@ async def state_await_email(db, mail, member, member_data, message):
 
     await proc_send_email(db, mail, member, member_data, email)
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_send_email(db, mail, member, member_data, email):
     """Send verification code to member's email address.
 
@@ -427,8 +423,8 @@ async def proc_send_email(db, mail, member, member_data, email):
     await proc_request_code(db, member)
 
 @_next_state(State.AWAIT_CODE)
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_request_code(db, member):
     """DM verification code request to member and await response.
 
@@ -439,8 +435,8 @@ async def proc_request_code(db, member):
         "(check your spam folder if you don't see it).\n"
         f"You can request another email by typing `{PREFIX}resend`.")
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def state_await_code(db, ver_role, admin_channel, member, member_data,
     message):
     """Handle message received from member while awaiting code.
@@ -478,8 +474,8 @@ async def state_await_code(db, ver_role, admin_channel, member, member_data,
         })
         await proc_grant_rank(ver_role, admin_channel, member)
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_resend_email(db, mail, member, member_data):
     """Resend verification email to user's email address, if sent before.
 
@@ -495,8 +491,8 @@ async def proc_resend_email(db, mail, member, member_data):
         await proc_send_email(db, mail, member, member_data, email)
 
 @_next_state(State.AWAIT_ID)
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_request_id(db, member):
     """DM ID request to member and await response.
 
@@ -506,8 +502,8 @@ async def proc_request_id(db, member):
     await member.send("Please send a message with a "
         "photo of your government-issued ID attached.")
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def state_await_id(db, admin_channel, member, member_data, message):
     """Handle message received from member while awaiting ID.
     
@@ -529,8 +525,8 @@ async def state_await_id(db, admin_channel, member, member_data, message):
         attachments)
 
 @_next_state(State.AWAIT_APPROVAL)
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_forward_id_admins(db, member, admin_channel, member_data,
     attachments):
     """Forward member ID attachments to admin channel.
@@ -558,8 +554,8 @@ async def proc_forward_id_admins(db, member, admin_channel, member_data,
     await member.send("Your attachment(s) have been forwarded to the "
         "execs. Please wait.")
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def state_await_approval():
     """Handle message received from member while awaiting exec approval.
 
@@ -572,8 +568,8 @@ async def state_await_approval():
     pass
 
 @pre(check(_awaiting_approval, notify=True))
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_exec_approve(db, ver_role, admin_channel, exec, member):
     """Approve member awaiting exec approval.
 
@@ -591,8 +587,8 @@ async def proc_exec_approve(db, ver_role, admin_channel, exec, member):
     await proc_grant_rank(ver_role, admin_channel, member)
 
 @pre(check(_awaiting_approval, notify=True))
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_exec_reject(db, channel, member, reason):
     """Reject member awaiting exec approval and send them reason.
 
@@ -616,8 +612,8 @@ async def proc_exec_reject(db, channel, member, reason):
     await channel.send("Rejected verification request from "
         f"{member.mention}.")
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_display_pending(db, guild, channel):
     """Display list of members currently awaiting exec approval.
 
@@ -642,8 +638,8 @@ async def proc_display_pending(db, guild, channel):
     await channel.send(f"__Members awaiting approval:__\n{mentions_formatted}")
 
 @pre(check(_awaiting_approval, notify=True))
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_resend_id(db, channel, member):
     """Resend ID attachments from member to admin channel.
 
@@ -681,8 +677,8 @@ async def proc_resend_id(db, channel, member):
             f"`{full_name}`, then type `{PREFIX}verify approve {member.id}` "
             f"or `{PREFIX}verify reject {member.id} \"reason\"`.", files=files)
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_verify_manual(db, ver_role, channel, exec, member, name, arg):
     """Add member details to database and grant them the verified rank.
 
@@ -718,8 +714,8 @@ async def proc_verify_manual(db, ver_role, channel, exec, member, name, arg):
     await db.set_member_data(member.id, member_data)
     await proc_grant_rank(ver_role, channel, member)
 
-@pre(log_invoke())
-@post(log_success())
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
 async def proc_rejoin_verified(ver_role, admin_channel, member):
     """Regrant previously verified member rank upon rejoining server.
 
@@ -730,14 +726,14 @@ async def proc_rejoin_verified(ver_role, admin_channel, member):
         admin_channel: Channel object to send exec notification to.
         member: Member object to grant verified rank to.
     """
-    await proc_grant_rank(ver_role, admin_channel, member)
+    await proc_grant_rank(ver_role, admin_channel, member, silent=True)
     await admin_channel.send(f"{member.mention} was previously verified, and "
         "has automatically been granted the verified rank upon (re)joining "
         "the server.")
 
-@pre(log_invoke())
-@post(log_success())
-async def proc_grant_rank(ver_role, admin_channel, member):
+@pre(log_invoke(LOG))
+@post(log_success(LOG))
+async def proc_grant_rank(ver_role, admin_channel, member, silent=False):
     """Grant verified rank to member and notify them and execs.
 
     Verified rank defined in cofig.
@@ -746,11 +742,14 @@ async def proc_grant_rank(ver_role, admin_channel, member):
         ver_role: Verified role object to grant to member.
         admin_channel: Channel object to send exec notification to.
         member: Member object to grant verified rank to.
+        silent: Boolean representing whether default confirmation messages
+            should be sent to member/admin channel.
     """
     await member.add_roles(ver_role)
     LOG.info(f"Granted verified rank to member '{member.id}'")
-    await member.send("You are now verified. Welcome to the server!")
-    await admin_channel.send(f"{member.mention} is now verified.")
+    if not silent:
+        await member.send("You are now verified. Welcome to the server!")
+        await admin_channel.send(f"{member.mention} is now verified.")
 
 class Verify(Cog, name=COG_NAME):
     """Handle automatic verification of server members.
@@ -775,8 +774,7 @@ class Verify(Cog, name=COG_NAME):
         Args:
             bot: Bot object that registered this cog.
         """
-        if LOG is not None:
-            LOG.debug(f"Initialising {COG_NAME} cog...")
+        LOG.debug(f"Initialising {COG_NAME} cog...")
         self.bot = bot
         self.logger = logger
 
@@ -815,10 +813,10 @@ class Verify(Cog, name=COG_NAME):
         """
         await self.cmd_verify(ctx)
 
-    @pre(log_attempt())
+    @pre(log_attempt(LOG))
     @pre(check(in_ver_channel, notify=True))
     @pre(check(is_unverified_user, notify=True))
-    @pre(log_invoke())
+    @pre(log_invoke(LOG))
     async def cmd_verify(self, ctx):
         """Handle verify command.
 
@@ -835,11 +833,11 @@ class Verify(Cog, name=COG_NAME):
         help="Verify a member awaiting exec approval.",
         usage="(Discord ID) __member__"
     )
-    @pre(log_attempt())
+    @pre(log_attempt(LOG))
     @pre(check(in_admin_channel, notify=True))
     @pre(check(is_admin_user, notify=True))
-    @pre(log_invoke())
-    @post(log_success())
+    @pre(log_invoke(LOG))
+    @post(log_success(LOG))
     async def cmd_verify_approve(self, ctx, member: Member):
         """Handle verify approve command.
 
@@ -858,11 +856,11 @@ class Verify(Cog, name=COG_NAME):
         help="Reject a member awaiting exec approval.",
         usage="(Discord ID) __member__ (multiple words) __reason__"
     )
-    @pre(log_attempt())
+    @pre(log_attempt(LOG))
     @pre(check(in_admin_channel, notify=True))
     @pre(check(is_admin_user, notify=True))
-    @pre(log_invoke())
-    @post(log_success())
+    @pre(log_invoke(LOG))
+    @post(log_success(LOG))
     async def cmd_verify_reject(self, ctx, member: Member, *, reason: str):
         """Handle verify reject command.
 
@@ -881,11 +879,11 @@ class Verify(Cog, name=COG_NAME):
         help="Display list of members awaiting approval for verification.",
         usage=""
     )
-    @pre(log_attempt())
+    @pre(log_attempt(LOG))
     @pre(check(is_admin_user, notify=True))
     @pre(check(in_admin_channel, notify=True))
-    @pre(log_invoke())
-    @post(log_success())
+    @pre(log_invoke(LOG))
+    @post(log_success(LOG))
     async def cmd_verify_pending(self, ctx):
         """Handle verify pending command.
 
@@ -903,11 +901,11 @@ class Verify(Cog, name=COG_NAME):
         help="Retrieve stored photo of ID from member awaiting approval.",
         usage="(Discord ID) __member__"
     )
-    @pre(log_attempt())
+    @pre(log_attempt(LOG))
     @pre(check(in_admin_channel, notify=True))
     @pre(check(is_admin_user, notify=True))
-    @pre(log_invoke())
-    @post(log_success())
+    @pre(log_invoke(LOG))
+    @post(log_success(LOG))
     async def cmd_verify_check(self, ctx, member: Member):
         """Handle verify check command.
 
@@ -924,11 +922,11 @@ class Verify(Cog, name=COG_NAME):
         help="Manually verify a member with the supplied details.",
         usage="(Discord ID) __member__ (quote) __name__ (word) __zID/Email__"
     )
-    @pre(log_attempt())
+    @pre(log_attempt(LOG))
     @pre(check(in_admin_channel, notify=True))
     @pre(check(is_admin_user, notify=True))
-    @pre(log_invoke())
-    @post(log_success())
+    @pre(log_invoke(LOG))
+    @post(log_success(LOG))
     async def cmd_verify_manual(self, ctx, member: Member, name, arg):
         """Handle verify manual command.
 
@@ -944,12 +942,12 @@ class Verify(Cog, name=COG_NAME):
             ctx.author, member, name, arg)
 
     @command(name="restart", hidden=True)
-    @pre(log_attempt())
+    @pre(log_attempt(LOG))
     @pre(check(in_dm_channel))
     @pre(check(is_guild_member, notify=True))
     @pre(check(is_unverified_user))
-    @pre(log_invoke())
-    @post(log_success())
+    @pre(log_invoke(LOG))
+    @post(log_success(LOG))
     async def cmd_restart(self, ctx):
         """Handle restart command.
 
@@ -962,13 +960,13 @@ class Verify(Cog, name=COG_NAME):
         await proc_restart(self.db, ctx.author)
 
     @command(name="resend", hidden=True)
-    @pre(log_attempt())
+    @pre(log_attempt(LOG))
     @pre(check(in_dm_channel))
     @pre(check(is_guild_member, notify=True))
     @pre(check(is_unverified_user))
     @pre(check(is_verifying_user))
-    @pre(log_invoke())
-    @post(log_success())
+    @pre(log_invoke(LOG))
+    @post(log_success(LOG))
     async def cmd_resend(self, ctx):
         """Handle resend command.
 
@@ -1002,8 +1000,8 @@ class Verify(Cog, name=COG_NAME):
     @pre(check(is_not_command, level=None))
     @pre(check(is_guild_member, level=None))
     @pre(check(is_unverified_user, level=None))
-    @pre(log_invoke(meta="verifying"))
-    @post(log_success(meta="verifying"))
+    @pre(log_invoke(LOG, meta="verifying"))
+    @post(log_success(LOG, meta="verifying"))
     async def on_message(self, message):
         """Handle DM received by unverified member.
 
@@ -1015,8 +1013,8 @@ class Verify(Cog, name=COG_NAME):
         member = self.guild.get_member(message.author.id)
         await self.proc_handle_state(member, message)
 
-    @pre(log_invoke())
-    @post(log_success())
+    @pre(log_invoke(LOG))
+    @post(log_success(LOG))
     async def proc_handle_state(self, member, message):
         """Call current state handler for member upon receiving message.
 

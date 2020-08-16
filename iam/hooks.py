@@ -123,21 +123,20 @@ def post(action):
         return wrapper
     return decorator
 
-def log(meta="", level=DEBUG):
+def log(logger, meta="", level=DEBUG):
     """Log function call.
 
     Args:
         meta: String representing info about function.
         level: Logging level to log at.
     """
-    def wrapper(func, cog, *args, **kwargs):
+    def wrapper(func, *args, **kwargs):
         info = [func.__name__, meta]
-        log_func(cog.logger, level, ": ".join(filter(None, info)), 
-            *(cog, *args), **kwargs)
+        log_func(logger, level, ": ".join(filter(None, info)), *args, **kwargs)
         return True
     return wrapper
 
-def log_attempt(meta="", level=DEBUG):
+def log_attempt(logger, meta="", level=DEBUG):
     """Log function invoke attempt.
 
     Args:
@@ -146,9 +145,9 @@ def log_attempt(meta="", level=DEBUG):
         level: Logging level to log at.
     """
     info = ["invoke attempt", meta]
-    return log(meta=" - ".join(filter(None, info)), level=level)
+    return log(logger, meta=" - ".join(filter(None, info)), level=level)
 
-def log_invoke(meta="", level=INFO):
+def log_invoke(logger, meta="", level=INFO):
     """Log function invoke success.
 
     Args:
@@ -157,9 +156,9 @@ def log_invoke(meta="", level=INFO):
         level: Logging level to log at.
     """
     info = ["invoke success", meta]
-    return log(meta=" - ".join(filter(None, info)), level=level)
+    return log(logger, meta=" - ".join(filter(None, info)), level=level)
 
-def log_success(meta="", level=DEBUG):
+def log_success(logger, meta="", level=DEBUG):
     """Log function execute success.
 
     Args:
@@ -168,7 +167,7 @@ def log_success(meta="", level=DEBUG):
         level: Logging level to log at.
     """
     info = ["execute success", meta]
-    return log(meta=" - ".join(filter(None, info)), level=level)
+    return log(logger, meta=" - ".join(filter(None, info)), level=level)
 
 def check(check_func, level=DEBUG, notify=False):
     """Performs check on function call to determine if it should proceed.

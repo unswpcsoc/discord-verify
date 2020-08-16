@@ -109,8 +109,8 @@ class Core(Cog, name=COG_NAME):
         help="Display this help dialogue.",
         usage=""
     )
-    @pre(log_invoke())
-    @post(log_success())
+    @pre(log_invoke(LOG))
+    @post(log_success(LOG))
     async def cmd_help(self, ctx, *query):
         """Handle help command.
 
