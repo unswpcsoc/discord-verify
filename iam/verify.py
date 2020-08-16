@@ -1,26 +1,3 @@
-"""MIT License
-
-Copyright (c) 2020 Computer Enthusiasts Society
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-"""
-
 """Handle automatic verification of server members."""
 
 from enum import IntEnum
@@ -90,17 +67,6 @@ class State(IntEnum):
     AWAIT_ID = 5
     AWAIT_APPROVAL = 6
 
-def is_valid_zid(zid):
-    """Returns whether given string is a valid zID.
-
-    Args:
-        zID: String to validate.
-
-    Returns:
-        Boolean value representing whether string is a valid zID.
-    """
-    return search(ZID_REGEX, zid) is not None
-
 def _next_state(state):
     """Decorate method to trigger state change on completion.
 
@@ -111,33 +77,11 @@ def _next_state(state):
     """
     def decorator(func):
         @wraps(func)
-        async def wrapper(self, member, *args):
-            await func(self, member, *args)
-            self.db.update_member_data(member.id, {MemberKey.VER_STATE: state})
+        async def wrapper(db, member, *args):
+            await func(db, member, *args)
+            db.update_member_data(member.id, {MemberKey.VER_STATE: state})
         return wrapper
     return decorator
-
-def is_verifying_user(cog, ctx, *func_args, **func_kwargs):
-    """Checks that user that invoked function is undergoing verification.
-
-    Associated cog must have db as an instance variable.
-
-    Args:
-        func: Function invoked.
-        cog: Cog associated with function invocation.
-        ctx: Context object associated with function invocation.
-
-    Raises:
-        CheckFailed: If invoker does not have verified role.
-    """
-    try:
-        member_data = cog.db.get_member_data(ctx.author.id)
-    except MemberNotFound:
-        return False, "You are not currently being verified."
-    if member_data[MemberKey.VER_STATE] is None:
-        return False, "You are not currently being verified."
-    elif member_data[MemberKey.ID_VER]:
-        return False, "You are already verified."
 
 def _awaiting_approval(cog, ctx, member, *func_args, **func_kwargs):
     """Raises exception if member is not awaiting approval.
@@ -163,6 +107,651 @@ def _awaiting_approval(cog, ctx, member, *func_args, **func_kwargs):
         return False, "That user is not awaiting approval."
     return True, None
 
+def is_valid_zid(zid):
+    """Returns whether given string is a valid zID.
+
+    Args:
+        zID: String to validate.
+
+    Returns:
+        Boolean value representing whether string is a valid zID.
+    """
+    return search(ZID_REGEX, zid) is not None
+
+def is_verifying_user(cog, ctx, *func_args, **func_kwargs):
+    """Checks that user that invoked function is undergoing verification.
+
+    Associated cog must have db as an instance variable.
+
+    Args:
+        func: Function invoked.
+        cog: Cog associated with function invocation.
+        ctx: Context object associated with function invocation.
+
+    Raises:
+        CheckFailed: If invoker does not have verified role.
+    """
+    try:
+        member_data = cog.db.get_member_data(ctx.author.id)
+    except MemberNotFound:
+        return False, "You are not currently being verified."
+    if member_data[MemberKey.VER_STATE] is None:
+        return False, "You are not currently being verified."
+    elif member_data[MemberKey.ID_VER]:
+        return False, "You are already verified."
+
+@pre(log_invoke(level=DEBUG))
+@post(log_success())
+def get_code(db, user, noise):
+    """Generate verification code for user.
+
+    Args:
+        db: Database object.
+        user: User object to generate code for.
+        noise: Number to add to user ID when hashing.
+
+    Returns:
+        Verification code as string of hex bytes.
+    """
+    secret = db.get_secret(SecretID.VERIFY)
+    user_bytes = bytes(str(user.id + noise), "utf8")
+    return hmac.new(secret, user_bytes, "sha256").hexdigest()
+
+@pre(log_invoke())
+@post(log_success())
+async def proc_begin(db, ver_role, admin_channel, member):
+    """Begin verification process for member.
+
+    Creates new entry in database.
+
+    If member is already undergoing verification, send error message.
+
+    If member was previously verified, immediately proceed to grant them
+    the verified rank.
+
+    Args:
+        db: Database object.
+        ver_role: Verified role object to grant to members.
+        admin_channel: Channel object to send exec notifications to.
+        member: Member object to begin verifying.
+    """
+    try:
+        member_data = db.get_member_data(member.id)
+    except MemberNotFound:
+        db.set_member_data(member.id, make_def_member_data())
+    else:
+        if member_data[MemberKey.ID_VER]:
+            LOG.info(f"Member {member} was already verified. "
+                "Granting rank...")
+            await proc_grant_rank(ver_role, admin_channel, member)
+            await member.send("Our records show you were verified in the "
+                "past. You have been granted the rank once again. Welcome "
+                "back to the server!")
+            await admin_channel.send(f"{member.mention} was "
+                "previously verified, and has been given the verified "
+                "rank again through request.")
+            return
+        elif member_data[MemberKey.VER_STATE] is not None:
+            LOG.debug(f"Member {member} already undergoing verification. "
+                "Notifying them to use the restart command...")     
+            await member.send("You are already undergoing the "
+                "verification process. To restart, type "
+                f"`{PREFIX}restart`.")
+            return
+        else:
+            email_attempts = member_data[MemberKey.EMAIL_ATTEMPTS]
+            max_email_attempts = member_data[MemberKey.MAX_EMAIL_ATTEMPTS]
+            if email_attempts >= max_email_attempts:
+                # Member was previously rejected but ran out of email
+                # verification attempts. Grant them 2 more.
+                db.update_member_data(member.id, {
+                    MemberKey.MAX_EMAIL_ATTEMPTS: max_email_attempts + 2
+                })
+
+    await proc_request_name(db, member)
+
+@pre(log_invoke())
+@post(log_success())
+async def proc_restart(db, user):
+    """Restart verification process for user.
+
+    If user already verified or not undergoing verification, send error
+    message to user.
+
+    Args:
+        db: Database object.
+        user: User object to restart verification for.
+    """
+    try:
+        member_data = db.get_member_data(user.id)
+    except MemberNotFound:
+        await user.send("You are not currently being verified.")
+        return
+    if member_data[MemberKey.ID_VER]:
+        await user.send("You are already verified.")
+        return
+    elif member_data[MemberKey.VER_STATE] is None:
+        await user.send("You are not currently being verified.")
+        return
+
+    async with user.typing():
+        db.update_member_data(user.id, {
+            MemberKey.VER_STATE: None,
+            MemberKey.VER_TIME: time()
+        })
+
+    await proc_request_name(db, user)
+
+@_next_state(State.AWAIT_NAME)
+@pre(log_invoke())
+@post(log_success())
+async def proc_request_name(db, member):
+    """DM name request to member and await response.
+
+    Args:
+        member: Member object to make request to.
+    """
+    await member.send("What is your full name as it appears on your "
+        "government-issued ID?\nYou can restart this verification process "
+        f"at any time by typing `{PREFIX}restart`.")
+
+@pre(log_invoke())
+@post(log_success())
+async def state_await_name(db, member, member_data, message):
+    """Handle message received from member while awaiting name.
+
+    Proceed to request whether they are a UNSW student.
+
+    Args:
+        db: Database object.
+        member: Member object that sent message.
+        member_data: Dict containing data from member entry in database.
+        message: Message object received from member.
+    """
+    full_name = message.content
+    MAX_NAME_LEN = 500
+    if len(full_name) > MAX_NAME_LEN:
+        await member.send(f"Name must be {MAX_NAME_LEN} characters "
+            "or fewer. Please try again.")
+        return
+
+    db.update_member_data(member.id, {MemberKey.NAME: full_name})
+    await proc_request_unsw(db, member)
+
+@_next_state(State.AWAIT_UNSW)
+@pre(log_invoke())
+@post(log_success())
+async def proc_request_unsw(db, member):
+    """DM is UNSW? request to member and await response.
+
+    Args:
+        member: Member object to make request to.
+    """
+    await member.send("Are you a UNSW student? Please type `y` or `n`.")
+
+@pre(log_invoke())
+@post(log_success())
+async def state_await_unsw(db, member, member_data, message):
+    """Handle message received from member while awaiting is UNSW?.
+
+    If message is "y", proceed to request zID.
+    If message is "n", proceed to request email address.
+    If message is neither, send error message.
+
+    Args:
+        db: Database object.
+        member: Member object that sent message.
+        member_data: Dict containing data from member entry in database.
+        message: Message object received from member.
+    """
+    ans = message.content.lower()
+    if ans == "y" or ans == "yes":
+        await proc_request_zid(db, member)
+    elif ans == "n" or ans == "no":
+        await proc_request_email(db, member)
+    else:
+        await member.send("Please type `y` or `n`.")
+
+@_next_state(State.AWAIT_ZID)
+@pre(log_invoke())
+@post(log_success())
+async def proc_request_zid(db, member):
+    """DM zID request to member and await response.
+
+    Args:
+        member: Member object to make request to.
+    """
+    await member.send("What is your zID?")
+
+@pre(log_invoke())
+@post(log_success())
+async def state_await_zid(db, mail, member, member_data, message):
+    """Handle message received from member while awaiting zID.
+
+    If message is valid zID, proceed to email verification with their
+    student email.
+
+    Args:
+        db: Database object.
+        mail: Mail object.
+        member: Member object that sent message.
+        member_data: Dict containing data from member entry in database.
+        message: Message object received from member.
+    """
+    zid = message.content.lower()
+    if not is_valid_zid(zid):
+        await member.send(f"Your zID must match the following format: "
+            "`zXXXXXXX`. Please try again")
+        return
+    email = f"{zid}@student.unsw.edu.au"
+
+    db.update_member_data(member.id, {
+        MemberKey.ZID: zid,
+        MemberKey.EMAIL: email
+    })
+
+    await proc_send_email(db, mail, member, member_data, email)
+
+@_next_state(State.AWAIT_EMAIL)
+@pre(log_invoke())
+@post(log_success())
+async def proc_request_email(db, member):
+    """DM email address request to member and await response.
+
+    Args:
+        member: Member object to make request to.
+    """
+    await member.send("What is your email address?")
+
+@pre(log_invoke())
+@post(log_success())
+async def state_await_email(db, mail, member, member_data, message):
+    """Handle message received from member while awaiting email address.
+
+    Assume message is email address and proceed to email verification.
+
+    Args:
+        db: Database object.
+        mail: Mail object.
+        member: Member object that sent message.
+        member_data: Dict containing data from member entry in database.
+        message: Message object received from member.
+    """
+    email = message.content
+    if not is_valid_email(email):
+        await member.send("That is not a valid email address. "
+            "Please try again.")
+        return
+
+    await proc_send_email(db, mail, member, member_data, email)
+
+@pre(log_invoke())
+@post(log_success())
+async def proc_send_email(db, mail, member, member_data, email):
+    """Send verification code to member's email address.
+
+    If email sends successfully, proceed to request code from member.
+
+    Args:
+        db: Database object.
+        mail: Mail object.
+        member: Member object to send email to.
+        member_data: Dict containing data from member entry in database.
+        email: Member's email address.
+    """
+    email_attempts = member_data[MemberKey.EMAIL_ATTEMPTS]
+    max_email_attempts = member_data[MemberKey.MAX_EMAIL_ATTEMPTS]
+    if email_attempts >= max_email_attempts:
+        await member.send("You have requested too many emails. "
+            "Please DM an exec to continue verification.")
+        return
+
+    code = get_code(db, member, member_data[MemberKey.VER_TIME])
+
+    try:
+        async with member.typing():
+            mail.send_email(email, "PCSoc Discord Verification", 
+                f"Your code is {code}")
+    except MailError as err:
+        err.notify()
+        await member.send("Oops! Something went wrong while attempting "
+            "to send you an email. Please ensure that your details have "
+            "been entered correctly.")
+        return
+
+    db.update_member_data(member.id, {
+        MemberKey.EMAIL: email,
+        MemberKey.EMAIL_ATTEMPTS: email_attempts + 1
+    })
+    
+    await proc_request_code(db, member)
+
+@_next_state(State.AWAIT_CODE)
+@pre(log_invoke())
+@post(log_success())
+async def proc_request_code(db, member):
+    """DM verification code request to member and await response.
+
+    Args:
+        member: Member object to make request to.
+    """
+    await member.send("Please enter the code sent to your email "
+        "(check your spam folder if you don't see it).\n"
+        f"You can request another email by typing `{PREFIX}resend`.")
+
+@pre(log_invoke())
+@post(log_success())
+async def state_await_code(db, ver_role, admin_channel, member, member_data,
+    message):
+    """Handle message received from member while awaiting code.
+
+    If message content is a code matching the code generated by us, proceed
+    to grant verified rank to member if they are UNSW student, or request
+    ID if they are non-UNSW.
+
+    Args:
+        db: Database object.
+        ver_role: Verified role to grant to member.
+        admin_channel: Channel object to send exec notification to.
+        member: Member object that sent message.
+        member_data: Dict containing data from member entry in database.
+        message: Message object received from member.
+    """
+    received_code = message.content
+    expected_code = get_code(db, member, member_data[MemberKey.VER_TIME])
+    if not hmac.compare_digest(received_code, expected_code):
+        await member.send("That was not the correct code. Please try "
+            "again.\nYou can request another email by typing "
+            f"`{PREFIX}resend`.")
+        return
+
+    db.update_member_data(member.id, {
+        MemberKey.EMAIL_VER: True,
+        MemberKey.VER_TIME: time()
+    })
+    
+    if member_data[MemberKey.ZID] is None:
+        await proc_request_id(db, member)
+    else:
+        db.update_member_data(member.id, {
+            MemberKey.ID_VER: True
+        })
+        await proc_grant_rank(ver_role, admin_channel, member)
+
+@pre(log_invoke())
+@post(log_success())
+async def proc_resend_email(db, mail, member, member_data):
+    """Resend verification email to user's email address, if sent before.
+
+    Args:
+        db: Database object.
+        mail: Mail object.
+        member: User object to resend email to.
+        member_data: Dict containing data from member entry in database.
+    """
+    if not member_data[MemberKey.ID_VER] \
+        and member_data[MemberKey.VER_STATE] == State.AWAIT_CODE:
+        email = member_data[MemberKey.EMAIL]
+        await proc_send_email(db, mail, member, member_data, email)
+
+@_next_state(State.AWAIT_ID)
+@pre(log_invoke())
+@post(log_success())
+async def proc_request_id(db, member):
+    """DM ID request to member and await response.
+
+    Args:
+        member: Member object to make request to.
+    """
+    await member.send("Please send a message with a "
+        "photo of your government-issued ID attached.")
+
+@pre(log_invoke())
+@post(log_success())
+async def state_await_id(db, admin_channel, member, member_data, message):
+    """Handle message received from member while awaiting ID.
+    
+    If message has attachments, proceed to forward attachments to admins.
+
+    Args:
+        db: Database object.
+        admin_channel: Channel object to forward attachments to.
+        member: Member object that sent message.
+        member_data: Dict containing data from member entry in database.
+        message: Message object received from member.
+    """
+    attachments = message.attachments
+    if len(attachments) == 0:
+        await member.send("No attachments received. Please try again.")
+        return
+    
+    await proc_forward_id_admins(db, member, admin_channel, member_data,
+        attachments)
+
+@_next_state(State.AWAIT_APPROVAL)
+@pre(log_invoke())
+@post(log_success())
+async def proc_forward_id_admins(db, member, admin_channel, member_data,
+    attachments):
+    """Forward member ID attachments to admin channel.
+
+    Proceed to await exec approval or rejection of member.
+
+    Args:
+        db: Database object.
+        member: Member object that sent attachments.
+        admin_channel: Channel object to forward attachments to.
+        member_data: Dict containing data from member entry in database.
+        attachments: List of Attachment objects received from member.
+    """
+    full_name = member_data[MemberKey.NAME]
+    async with member.typing():
+        files = [await a.to_file() for a in attachments]
+        message = await admin_channel.send("Received attachment(s) "
+            f"from {member.mention}. Please verify that name on ID is "
+            f"`{full_name}`, then type `{PREFIX}verify approve "
+            f"{member.id}` or `{PREFIX}verify reject {member.id} "
+            "\"reason\"`.", files=files)
+
+    db.update_member_data(member.id, {MemberKey.ID_MESSAGE: message.id})
+
+    await member.send("Your attachment(s) have been forwarded to the "
+        "execs. Please wait.")
+
+@pre(log_invoke())
+@post(log_success())
+async def state_await_approval():
+    """Handle message received from member while awaiting exec approval.
+
+    Currently does nothing.
+
+    Args:
+        member: Member object that sent message.
+        message: Message object received from member.
+    """
+    pass
+
+@pre(check(_awaiting_approval, notify=True))
+@pre(log_invoke())
+@post(log_success())
+async def proc_exec_approve(db, ver_role, admin_channel, exec, member):
+    """Approve member awaiting exec approval.
+
+    Proceed to grant member verified rank.
+
+    Args:
+        db: Database object.
+        exec: Member object representing approving exec.
+        member: Member object to approve verification for.
+    """
+    db.update_member_data(member.id, {
+        MemberKey.ID_VER: True,
+        MemberKey.VER_EXEC: exec.id
+    })
+    await proc_grant_rank(ver_role, admin_channel, member)
+
+@pre(check(_awaiting_approval, notify=True))
+@pre(log_invoke())
+@post(log_success())
+async def proc_exec_reject(db, channel, member, reason):
+    """Reject member awaiting exec approval and send them reason.
+
+    Deletes member from the database.
+
+    Args:
+        db: Database object.
+        channel: Channel object associated with command invocation.
+        member: Member object to reject verification for.
+        reason: String representing rejection reason.
+    """
+    db.update_member_data(member.id, {
+        MemberKey.VER_STATE: None
+    })
+
+    await member.send("Your verification request has been denied "
+        f"for the following reason(s): `{reason}`.\n"
+        f"You can start a new request by typing `{PREFIX}verify` in the "
+        "verification channel.")
+
+    await channel.send("Rejected verification request from "
+        f"{member.mention}.")
+
+@pre(log_invoke())
+@post(log_success())
+async def proc_display_pending(db, guild, channel):
+    """Display list of members currently awaiting exec approval.
+
+    Args:
+        db: Database object.
+        guild: Guild object to retrieve member data from.
+        channel: Channel object to send list of members to.
+    """
+    mentions = []
+    verifying = db.get_unverified_members_data()
+    for member_id in verifying:
+        if verifying[member_id][MemberKey.VER_STATE] \
+            == State.AWAIT_APPROVAL:
+            member = guild.get_member(member_id)
+            mentions.append(f"{member.mention}: {member_id}")
+    
+    if len(mentions) == 0:
+        await channel.send("No members currently awaiting approval.")
+        return
+
+    mentions_formatted = "\n".join(mentions)
+    await channel.send(f"__Members awaiting approval:__\n{mentions_formatted}")
+
+@pre(check(_awaiting_approval, notify=True))
+@pre(log_invoke())
+@post(log_success())
+async def proc_resend_id(db, channel, member):
+    """Resend ID attachments from member to admin channel.
+
+    Admin channel defined in config.
+
+    Retrieves attachments from previous message in admin channel.
+
+    Send error message if previous message was deleted.
+
+    Args:
+        db: Database object.
+        channel: Channel object associated with command invocation.
+        member: Member object to retrieve ID attachments from.
+    """
+    try:
+        member_data = db.get_member_data(member.id)
+    except MemberNotFound:
+        await member.send("You are not currently being verified.")
+        return
+    
+    message_id = member_data[MemberKey.ID_MESSAGE]
+    try:
+        message = await channel.fetch_message(message_id)
+    except NotFound:
+        await channel.send("Could not find previous message in this channel"
+            "containing attachments! Perhaps it was deleted?")
+        return
+    attachments = message.attachments
+
+    async with channel.typing():
+        files = [await a.to_file() for a in attachments]
+        full_name = member_data[MemberKey.NAME]
+        await channel.send("Previously received attachment(s) from "
+            f"{member.mention}. Please verify that name on ID is "
+            f"`{full_name}`, then type `{PREFIX}verify approve {member.id}` "
+            f"or `{PREFIX}verify reject {member.id} \"reason\"`.", files=files)
+
+@pre(log_invoke())
+@post(log_success())
+async def proc_verify_manual(db, ver_role, channel, exec, member, name, arg):
+    """Add member details to database and grant them the verified rank.
+
+    Verified rank defined in config.
+
+    Args:
+        db: Database object.
+        ver_role: Verified role object to grant to member.
+        channel: Channel object to send notifications to.
+        exec: Member object representing verifying exec.
+        member: Member object to verify.
+        name: String representing member name.
+        arg: String representing either zID or email.
+    """
+    member_data = make_def_member_data()
+    member_data.update({
+        MemberKey.NAME: name,
+        MemberKey.EMAIL_VER: True,
+        MemberKey.ID_VER: True,
+        MemberKey.VER_EXEC: exec.id
+    })
+    if is_valid_zid(arg):
+        member_data.update({
+            MemberKey.ZID: arg, 
+            MemberKey.EMAIL: f"{arg}@student.unsw.edu.au"
+        })
+    elif is_valid_email(arg):
+        member_data.update({MemberKey.EMAIL: arg})
+    else:
+        await channel.send("That is neither a valid zID nor "
+            "a valid email.")
+        return
+    await db.set_member_data(member.id, member_data)
+    await proc_grant_rank(ver_role, channel, member)
+
+@pre(log_invoke())
+@post(log_success())
+async def proc_rejoin_verified(ver_role, admin_channel, member):
+    """Regrant previously verified member rank upon rejoining server.
+
+    Verified rank defined in config.
+
+    Args:
+        ver_role: Verified role object to grant to member.
+        admin_channel: Channel object to send exec notification to.
+        member: Member object to grant verified rank to.
+    """
+    await proc_grant_rank(ver_role, admin_channel, member)
+    await admin_channel.send(f"{member.mention} was previously verified, and "
+        "has automatically been granted the verified rank upon (re)joining "
+        "the server.")
+
+@pre(log_invoke())
+@post(log_success())
+async def proc_grant_rank(ver_role, admin_channel, member):
+    """Grant verified rank to member and notify them and execs.
+
+    Verified rank defined in cofig.
+
+    Args:
+        ver_role: Verified role object to grant to member.
+        admin_channel: Channel object to send exec notification to.
+        member: Member object to grant verified rank to.
+    """
+    await member.add_roles(ver_role)
+    LOG.info(f"Granted verified rank to member '{member.id}'")
+    await member.send("You are now verified. Welcome to the server!")
+    await admin_channel.send(f"{member.mention} is now verified.")
+
 class Verify(Cog, name=COG_NAME):
     """Handle automatic verification of server members.
 
@@ -186,22 +775,18 @@ class Verify(Cog, name=COG_NAME):
         Args:
             bot: Bot object that registered this cog.
         """
-        LOG.debug(f"Initialising {COG_NAME} cog...")
+        if LOG is not None:
+            LOG.debug(f"Initialising {COG_NAME} cog...")
         self.bot = bot
         self.logger = logger
-        self.__state_handler = [
-            self.__state_await_name,
-            self.__state_await_unsw,
-            self.__state_await_zid,
-            self.__state_await_email,
-            self.__state_await_code,
-            self.__state_await_id,
-            self.__state_await_approval
-        ]
 
     @property
     def guild(self):
         return self.bot.get_guild(SERVER_ID)
+
+    @property
+    def ver_role(self):
+        return self.guild.get_role(VER_ROLE)
 
     @property
     def admin_channel(self):
@@ -243,7 +828,7 @@ class Verify(Cog, name=COG_NAME):
         Args:
             ctx: Context object associated with command invocation.
         """
-        await self.__proc_begin(ctx.author)
+        await proc_begin(self.db, self.ver_role, self.admin_channel, ctx.author)
 
     @grp_verify.command(
         name="approve",
@@ -265,7 +850,8 @@ class Verify(Cog, name=COG_NAME):
             ctx: Context object associated with command invocation.
             member: Associated Member object to approve verification for.
         """
-        await self.__proc_exec_approve(ctx, member)
+        await proc_exec_approve(self.db, self.ver_role, self.admin_channel,
+            ctx.author, member)
 
     @grp_verify.command(
         name="reject",
@@ -288,7 +874,7 @@ class Verify(Cog, name=COG_NAME):
             member: Associated Member object to reject verification for.
             reason: Rejection reason.
         """
-        await self.__proc_exec_reject(ctx, member, reason)
+        await proc_exec_reject(self.db, ctx.channel, member, reason)
 
     @grp_verify.command(
         name="pending",
@@ -310,7 +896,7 @@ class Verify(Cog, name=COG_NAME):
         Args:
             ctx: Context object associated with command invocation.
         """
-        await self.__proc_display_pending()
+        await proc_display_pending(self.db, self.guild, ctx)
 
     @grp_verify.command(
         name="check",
@@ -331,7 +917,7 @@ class Verify(Cog, name=COG_NAME):
             ctx: Context object associated with command invocation.
             member: Member object to retrieve associated ID attachments of.
         """
-        await self.__proc_resend_id(ctx, member)
+        await proc_resend_id(self.db, ctx.channel, member)
 
     @grp_verify.command(
         name="manual",
@@ -354,7 +940,8 @@ class Verify(Cog, name=COG_NAME):
             name: String representing member name.
             arg: String representing either zID or email.
         """
-        await self.__proc_verify_manual(ctx, member, name, arg)
+        await proc_verify_manual(self.db, self.ver_role, ctx.channel,
+            ctx.author, member, name, arg)
 
     @command(name="restart", hidden=True)
     @pre(log_attempt())
@@ -372,7 +959,7 @@ class Verify(Cog, name=COG_NAME):
         Args:
             ctx: Context object associated with command invocation.
         """
-        await self.__proc_restart(ctx.author)
+        await proc_restart(self.db, ctx.author)
 
     @command(name="resend", hidden=True)
     @pre(log_attempt())
@@ -392,7 +979,7 @@ class Verify(Cog, name=COG_NAME):
             ctx: Context object associated with command invocation.
         """
         member_data = self.db.get_member_data(ctx.author.id)
-        await self.__proc_resend_email(ctx.author, member_data)
+        await proc_resend_email(self.db, self.mail, ctx.author, member_data)
 
     @Cog.listener()
     @pre(check(is_human, level=None))
@@ -407,7 +994,7 @@ class Verify(Cog, name=COG_NAME):
         Args:
             member: Member object that joined the server.
         """
-        await self.__proc_rejoin_verified(member)
+        await proc_rejoin_verified(self.ver_role, self.admin_channel, member)
 
     @Cog.listener()
     @pre(check(is_human, level=None))
@@ -426,27 +1013,11 @@ class Verify(Cog, name=COG_NAME):
             message: Message object received.
         """
         member = self.guild.get_member(message.author.id)
-        await self.__proc_handle_state(member, message)
-
-    @pre(log_invoke(level=DEBUG))
-    @post(log_success())
-    def get_code(self, user, noise):
-        """Generate verification code for user.
-
-        Args:
-            user: User object to generate code for.
-            noise: Number to add to user ID when hashing.
-
-        Returns:
-            Verification code as string of hex bytes.
-        """
-        secret = self.db.get_secret(SecretID.VERIFY)
-        user_bytes = bytes(str(user.id + noise), "utf8")
-        return hmac.new(secret, user_bytes, "sha256").hexdigest()
+        await self.proc_handle_state(member, message)
 
     @pre(log_invoke())
     @post(log_success())
-    async def __proc_handle_state(self, member, message):
+    async def proc_handle_state(self, member, message):
         """Call current state handler for member upon receiving message.
 
         Args:
@@ -459,566 +1030,21 @@ class Verify(Cog, name=COG_NAME):
             return
         if not member_data[MemberKey.ID_VER]:
             state = member_data[MemberKey.VER_STATE]
-            await self.__state_handler[state](member, member_data, message)
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_begin(self, member):
-        """Begin verification process for member.
-
-        Creates new entry in database.
-
-        If member is already undergoing verification, send error message.
-
-        If member was previously verified, immediately proceed to grant them
-        the verified rank.
-
-        Args:
-            member: Member object to begin verifying.
-        """
-        try:
-            member_data = self.db.get_member_data(member.id)
-        except MemberNotFound:
-            self.db.set_member_data(member.id, make_def_member_data())
-        else:
-            if member_data[MemberKey.ID_VER]:
-                LOG.info(f"Member {member} was already verified. "
-                    "Granting rank...")
-                await self.__proc_grant_rank(member)
-                await member.send("Our records show you were verified in the "
-                    "past. You have been granted the rank once again. Welcome "
-                    "back to the server!")
-                await self.admin_channel.send(f"{member.mention} was "
-                    "previously verified, and has been given the verified "
-                    "rank again through request.")
-                return
-            elif member_data[MemberKey.VER_STATE] is not None:
-                LOG.debug(f"Member {member} already undergoing verification. "
-                    "Notifying them to use the restart command...")     
-                await member.send("You are already undergoing the "
-                    "verification process. To restart, type "
-                    f"`{PREFIX}restart`.")
-                return
-            else:
-                email_attempts = member_data[MemberKey.EMAIL_ATTEMPTS]
-                max_email_attempts = member_data[MemberKey.MAX_EMAIL_ATTEMPTS]
-                if email_attempts >= max_email_attempts:
-                    # Member was previously rejected but ran out of email
-                    # verification attempts. Grant them 2 more.
-                    self.db.update_member_data(member.id, {
-                        MemberKey.MAX_EMAIL_ATTEMPTS: max_email_attempts + 2
-                    })
-
-        await self.__proc_request_name(member)
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_restart(self, user):
-        """Restart verification process for user.
-
-        If user already verified or not undergoing verification, send error
-        message to user.
-
-        Args:
-            user: User object to restart verification for.
-        """
-        try:
-            member_data = self.db.get_member_data(user.id)
-        except MemberNotFound:
-            await user.send("You are not currently being verified.")
-            return
-        if member_data[MemberKey.ID_VER]:
-            await user.send("You are already verified.")
-            return
-        elif member_data[MemberKey.VER_STATE] is None:
-            await user.send("You are not currently being verified.")
-            return
-
-        async with user.typing():
-            self.db.update_member_data(user.id, {
-                MemberKey.VER_STATE: None,
-                MemberKey.VER_TIME: time()
-            })
-
-        await self.__proc_request_name(user)
-
-    @_next_state(State.AWAIT_NAME)
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_request_name(self, member):
-        """DM name request to member and await response.
-
-        Args:
-            member: Member object to make request to.
-        """
-        await member.send("What is your full name as it appears on your "
-            "government-issued ID?\nYou can restart this verification process "
-            f"at any time by typing `{PREFIX}restart`.")
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __state_await_name(self, member, member_data, message):
-        """Handle message received from member while awaiting name.
-
-        Proceed to request whether they are a UNSW student.
-
-        Args:
-            member: Member object that sent message.
-            member_data: Dict containing data from member entry in database.
-            message: Message object received from member.
-        """
-        full_name = message.content
-        MAX_NAME_LEN = 500
-        if len(full_name) > MAX_NAME_LEN:
-            await member.send(f"Name must be {MAX_NAME_LEN} characters "
-                "or fewer. Please try again.")
-            return
-
-        self.db.update_member_data(member.id, {MemberKey.NAME: full_name})
-        await self.__proc_request_unsw(member)
-
-    @_next_state(State.AWAIT_UNSW)
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_request_unsw(self, member):
-        """DM is UNSW? request to member and await response.
-
-        Args:
-            member: Member object to make request to.
-        """
-        await member.send("Are you a UNSW student? Please type `y` or `n`.")
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __state_await_unsw(self, member, member_data, message):
-        """Handle message received from member while awaiting is UNSW?.
-
-        If message is "y", proceed to request zID.
-        If message is "n", proceed to request email address.
-        If message is neither, send error message.
-
-        Args:
-            member: Member object that sent message.
-            member_data: Dict containing data from member entry in database.
-            message: Message object received from member.
-        """
-        ans = message.content.lower()
-        if ans == "y" or ans == "yes":
-            await self.__proc_request_zid(member)
-        elif ans == "n" or ans == "no":
-            await self.__proc_request_email(member)
-        else:
-            await member.send("Please type `y` or `n`.")
-
-    @_next_state(State.AWAIT_ZID)
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_request_zid(self, member):
-        """DM zID request to member and await response.
-
-        Args:
-            member: Member object to make request to.
-        """
-        await member.send("What is your zID?")
-    
-    @pre(log_invoke())
-    @post(log_success())
-    async def __state_await_zid(self, member, member_data, message):
-        """Handle message received from member while awaiting zID.
-
-        If message is valid zID, proceed to email verification with their
-        student email.
-
-        Args:
-            member: Member object that sent message.
-            member_data: Dict containing data from member entry in database.
-            message: Message object received from member.
-        """
-        zid = message.content.lower()
-        if not is_valid_zid(zid):
-            await member.send(f"Your zID must match the following format: "
-                "`zXXXXXXX`. Please try again")
-            return
-        email = f"{zid}@student.unsw.edu.au"
-
-        self.db.update_member_data(member.id, {
-            MemberKey.ZID: zid,
-            MemberKey.EMAIL: email
-        })
-
-        await self.__proc_send_email(member, member_data, email)
-
-    @_next_state(State.AWAIT_EMAIL)
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_request_email(self, member):
-        """DM email address request to member and await response.
-
-        Args:
-            member: Member object to make request to.
-        """
-        await member.send("What is your email address?")
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __state_await_email(self, member, member_data, message):
-        """Handle message received from member while awaiting email address.
-
-        Assume message is email address and proceed to email verification.
-
-        Args:
-            member: Member object that sent message.
-            member_data: Dict containing data from member entry in database.
-            message: Message object received from member.
-        """
-        email = message.content
-        if not is_valid_email(email):
-            await member.send("That is not a valid email address. "
-                "Please try again.")
-            return
-
-        await self.__proc_send_email(member, member_data, email)
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_send_email(self, member, member_data, email):
-        """Send verification code to member's email address.
-
-        If email sends successfully, proceed to request code from member.
-
-        Args:
-            member: Member object to send email to.
-            member_data: Dict containing data from member entry in database.
-            email: Member's email address.
-        """
-        email_attempts = member_data[MemberKey.EMAIL_ATTEMPTS]
-        max_email_attempts = member_data[MemberKey.MAX_EMAIL_ATTEMPTS]
-        if email_attempts >= max_email_attempts:
-            await member.send("You have requested too many emails. "
-                "Please DM an exec to continue verification.")
-            return
-
-        code = self.get_code(member, member_data[MemberKey.VER_TIME])
-
-        try:
-            async with member.typing():
-                self.mail.send_email(email, "PCSoc Discord Verification", 
-                    f"Your code is {code}")
-        except MailError as err:
-            err.notify()
-            await member.send("Oops! Something went wrong while attempting "
-                "to send you an email. Please ensure that your details have "
-                "been entered correctly.")
-            return
-
-        self.db.update_member_data(member.id, {
-            MemberKey.EMAIL: email,
-            MemberKey.EMAIL_ATTEMPTS: email_attempts + 1
-        })
-        
-        await self.__proc_request_code(member)
-
-    @_next_state(State.AWAIT_CODE)
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_request_code(self, member):
-        """DM verification code request to member and await response.
-
-        Args:
-            member: Member object to make request to.
-        """
-        await member.send("Please enter the code sent to your email "
-            "(check your spam folder if you don't see it).\n"
-            f"You can request another email by typing `{PREFIX}resend`.")
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __state_await_code(self, member, member_data, message):
-        """Handle message received from member while awaiting code.
-
-        If message content is a code matching the code generated by us, proceed
-        to grant verified rank to member if they are UNSW student, or request
-        ID if they are non-UNSW.
-
-        Args:
-            member: Member object that sent message.
-            member_data: Dict containing data from member entry in database.
-            message: Message object received from member.
-        """
-        received_code = message.content
-        expected_code = self.get_code(member, member_data[MemberKey.VER_TIME])
-        if not hmac.compare_digest(received_code, expected_code):
-            await member.send("That was not the correct code. Please try "
-                "again.\nYou can request another email by typing "
-                f"`{PREFIX}resend`.")
-            return
-
-        self.db.update_member_data(member.id, {
-            MemberKey.EMAIL_VER: True,
-            MemberKey.VER_TIME: time()
-        })
-        
-        if member_data[MemberKey.ZID] is None:
-            await self.__proc_request_id(member)
-        else:
-            self.db.update_member_data(member.id, {
-                MemberKey.ID_VER: True
-            })
-            await self.__proc_grant_rank(member)
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_resend_email(self, member, member_data):
-        """Resend verification email to user's email address, if sent before.
-
-        Args:
-            member: User object to resend email to.
-            member_data: Dict containing data from member entry in database.
-        """
-        if not member_data[MemberKey.ID_VER] \
-            and member_data[MemberKey.VER_STATE] == State.AWAIT_CODE:
-            email = member_data[MemberKey.EMAIL]
-            await self.__proc_send_email(member, member_data, email)
-
-    @_next_state(State.AWAIT_ID)
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_request_id(self, member):
-        """DM ID request to member and await response.
-
-        Args:
-            member: Member object to make request to.
-        """
-        await member.send("Please send a message with a "
-            "photo of your government-issued ID attached.")
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __state_await_id(self, member, member_data, message):
-        """Handle message received from member while awaiting ID.
-        
-        If message has attachments, proceed to forward attachments to admins.
-
-        Args:
-            member: Member object that sent message.
-            member_data: Dict containing data from member entry in database.
-            message: Message object received from member.
-        """
-        attachments = message.attachments
-        if len(attachments) == 0:
-            await member.send("No attachments received. Please try again.")
-            return
-        
-        await self.__proc_forward_id_admins(member, member_data, attachments)
-
-    @_next_state(State.AWAIT_APPROVAL)
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_forward_id_admins(self, member, member_data, attachments):
-        """Forward member ID attachments to admin channel.
-
-        Proceed to await exec approval or rejection of member.
-
-        Args:
-            member: Member object that sent attachments.
-            attachments: List of Attachment objects received from member.
-        """
-        full_name = member_data[MemberKey.NAME]
-        async with member.typing():
-            files = [await a.to_file() for a in attachments]
-            message = await self.admin_channel.send("Received attachment(s) "
-                f"from {member.mention}. Please verify that name on ID is "
-                f"`{full_name}`, then type `{PREFIX}verify approve "
-                f"{member.id}` or `{PREFIX}verify reject {member.id} "
-                "\"reason\"`.", files=files)
-
-        self.db.update_member_data(member.id, {
-            MemberKey.ID_MESSAGE: message.id
-        })
-
-        await member.send("Your attachment(s) have been forwarded to the "
-            "execs. Please wait.")
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __state_await_approval(self, member, member_data, message):
-        """Handle message received from member while awaiting exec approval.
-
-        Currently does nothing.
-
-        Args:
-            member: Member object that sent message.
-            message: Message object received from member.
-        """
-        pass
-
-    @pre(check(_awaiting_approval, notify=True))
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_exec_approve(self, ctx, member):
-        """Approve member awaiting exec approval.
-
-        Proceed to grant member verified rank.
-
-        Args:
-            ctx: Context object associated with command invocation.
-            member: Member object to approve verification for.
-        """
-        self.db.update_member_data(member.id, {
-            MemberKey.ID_VER: True,
-            MemberKey.VER_EXEC: ctx.author.id
-        })
-        await self.__proc_grant_rank(member)
-
-    @pre(check(_awaiting_approval, notify=True))
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_exec_reject(self, ctx, member, reason):
-        """Reject member awaiting exec approval and send them reason.
-
-        Deletes member from the database.
-
-        Args:
-            ctx: Context object associated with command invocation.
-            member: Member object to reject verification for.
-            reason: String representing rejection reason.
-        """
-        self.db.update_member_data(member.id, {
-            MemberKey.VER_STATE: None
-        })
-
-        await member.send("Your verification request has been denied "
-            f"for the following reason(s): `{reason}`.\n"
-            f"You can start a new request by typing `{PREFIX}verify` in the "
-            "verification channel.")
-
-        await self.admin_channel.send("Rejected verification request from "
-            f"{member.mention}.")
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_display_pending(self):
-        """Display list of members currently awaiting exec approval.
-
-        Message will be sent to admin channel defined in config.
-        """
-        mentions = []
-        verifying = self.db.get_unverified_members_data()
-        for member_id in verifying:
-            if verifying[member_id][MemberKey.VER_STATE] \
-                == State.AWAIT_APPROVAL:
-                member = self.guild.get_member(member_id)
-                mentions.append(f"{member.mention}: {member_id}")
-        
-        if len(mentions) == 0:
-            await self.admin_channel.send("No members currently awaiting "
-            "approval.")
-            return
-
-        mentions_formatted = "\n".join(mentions)
-        await self.admin_channel.send("__Members awaiting approval:__\n"
-            f"{mentions_formatted}")
-
-    @pre(check(_awaiting_approval, notify=True))
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_resend_id(self, ctx, member):
-        """Resend ID attachments from member to admin channel.
-
-        Admin channel defined in config.
-
-        Retrieves attachments from previous message in admin channel.
-
-        Send error message if previous message was deleted.
-
-        Args:
-            ctx: Context object associated with command invocation.
-            member: Member object to retrieve ID attachments from.
-        """
-        try:
-            member_data = self.db.get_member_data(member.id)
-        except MemberNotFound:
-            await member.send("You are not currently being verified.")
-            return
-        
-        message_id = member_data[MemberKey.ID_MESSAGE]
-        try:
-            message = await self.admin_channel.fetch_message(message_id)
-        except NotFound:
-            await self.admin_channel.send("Could not find previous message in "
-            "this channel containing attachments! Perhaps it was deleted?")
-            return
-        attachments = message.attachments
-
-        async with self.admin_channel.typing():
-            files = [await a.to_file() for a in attachments]
-            full_name = member_data[MemberKey.NAME]
-            await self.admin_channel.send("Previously received attachment(s) "
-                f"from {member.mention}. Please verify that name on ID is "
-                f"`{full_name}`, then type `{PREFIX}verify approve "
-                f"{member.id}` or `{PREFIX}verify reject {member.id} "
-                "\"reason\"`.", files=files)
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_verify_manual(self, ctx, member, name, arg):
-        """Add member details to database and grant them the verified rank.
-
-        Verified rank defined in config.
-
-        Args:
-            ctx: Context object associated with command invocation.
-            member: Associated Member object to verify.
-            name: String representing member name.
-            arg: String representing either zID or email.
-        """
-        member_data = make_def_member_data()
-        member_data.update({
-            MemberKey.NAME: name,
-            MemberKey.EMAIL_VER: True,
-            MemberKey.ID_VER: True,
-            MemberKey.VER_EXEC: ctx.author.id
-        })
-        if is_valid_zid(arg):
-            member_data.update({
-                MemberKey.ZID: arg, 
-                MemberKey.EMAIL: f"{arg}@student.unsw.edu.au"
-            })
-        elif is_valid_email(arg):
-            member_data.update({MemberKey.EMAIL: arg})
-        else:
-            await self.admin_channel.send("That is neither a valid zID nor "
-                "a valid email.")
-            return
-        await self.db.set_member_data(member.id, member_data)
-        await self.__proc_grant_rank(member)
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_rejoin_verified(self, member):
-        """Regrant previously verified member rank upon rejoining server.
-
-        Verified rank defined in config.
-
-        Args:
-            member: Member object to grant verified rank to.
-        """
-        await self.__proc_grant_rank(member)
-        await self.admin_channel.send(f"{member.mention} was previously "
-            "verified, and has automatically been granted the verified rank "
-            "upon (re)joining the server.")
-
-    @pre(log_invoke())
-    @post(log_success())
-    async def __proc_grant_rank(self, member):
-        """Grant verified rank to member and notify them and execs.
-
-        Verified rank defined in cofig.
-
-        Args:
-            member: Member object to grant verified rank to.
-        """
-        await member.add_roles(self.guild.get_role(VER_ROLE))
-        LOG.info(f"Granted verified rank to member '{member.id}'")
-        await member.send("You are now verified. Welcome to the server!")
-        await self.admin_channel.send(f"{member.mention} is now verified.")
+            if state == State.AWAIT_NAME:
+                await state_await_name(self.db, member, member_data, message)
+            elif state == State.AWAIT_UNSW:
+                await state_await_unsw(self.db, member, member_data, message)
+            elif state == State.AWAIT_ZID:
+                await state_await_zid(self.db, self.mail, member, member_data,
+                    message)
+            elif state == State.AWAIT_EMAIL:
+                await state_await_email(self.db, self.mail, member,
+                    member_data, message)
+            elif state == State.AWAIT_CODE:
+                await state_await_code(self.db, self.ver_role,
+                    self.admin_channel, member, member_data, message)
+            elif state == State.AWAIT_ID:
+                await state_await_id(self.db, self.admin_channel, member,
+                    member_data, message)
+            elif state == State.AWAIT_APPROVAL:
+                await state_await_approval()
