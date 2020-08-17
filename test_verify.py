@@ -5,7 +5,9 @@ from time import time
 from unittest.mock import patch, AsyncMock, MagicMock
 from iam.verify import (
     State, proc_begin, proc_restart, state_await_name, state_await_unsw,
-    state_await_zid, state_await_email, proc_send_email, proc_resend_email
+    state_await_zid, state_await_email, proc_send_email, state_await_code,
+    proc_resend_email, state_await_id, proc_exec_approve, proc_exec_reject,
+    proc_resend_id, proc_display_pending, proc_verify_manual, proc_grant_rank
 )
 from iam.db import (
     MemberKey, MemberNotFound, make_def_member_data, MAX_VER_EMAILS
@@ -554,3 +556,135 @@ async def test_proc_send_email_failed():
         member.add_roles.assert_not_called()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_state_await_code_unsw():
+    """Student sending matching code verified."""
+    pass
+
+@pytest.mark.asyncio
+async def test_state_await_code_non_unsw():
+    """Non-student sending matching code moves on to ID question."""
+    pass
+
+@pytest.mark.asyncio
+async def test_state_await_code_invalid():
+    """User sending non-matching code sent error."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_resend_email_standard():
+    """User requesting resend sent another email."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_resend_email_never_sent():
+    """User never sent email sent error."""
+    pass
+
+@pytest.mark.asyncio
+async def test_state_await_id_standard():
+    """User sending attachments forwarded to admin channel."""
+    pass
+
+@pytest.mark.asyncio
+async def test_state_await_id_no_attachments():
+    """User sending no attachments sent error."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_exec_approve_standard():
+    """Exec approving verifying user grants rank to user."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_exec_approve_not_awaiting():
+    """Exec approving user not awaiting approval sends error."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_exec_approve_not_verifying():
+    """Exec approving user not verifying sends error."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_exec_approve_never_verifying():
+    """Exec approving user never started verification sends error."""
+
+@pytest.mark.asyncio
+async def test_proc_exec_reject_standard():
+    """Exec rejecting verifying user notifies user and updates accordingly."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_exec_reject_not_awaiting():
+    """Exec rejecting user not verifying sends error."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_exec_reject_not_verifying():
+    """Exec rejecting user not verifying sends error."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_exec_reject_never_verifying():
+    """Exec rejecting user never started verification sends error."""
+
+@pytest.mark.asyncio
+async def test_proc_display_pending_standard():
+    """Send list of pending approvals on request."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_display_pending_none():
+    """Send error if no pending approvals."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_resend_id_standard():
+    """Retrieve previous message attachments and resend."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_resend_id_not_awaiting():
+    """Send error if user not awaiting approval."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_resend_id_not_verifying():
+    """Send error if user not verifying."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_resend_id_never_verifying():
+    """Send error if user never started verification."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_resend_id_not_found():
+    """Send error if previous message containing attachments not found."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_verify_manual_standard():
+    """Create new user entry in database and verify user."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_verify_manual_invalid_zid():
+    """Send error if invalid zID entered."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_verify_manual_invalid_email():
+    """Send error if invalid email entered."""
+    pass
+
+@pytest.mark.asyncio
+async def test_proc_grant_rank_standard():
+    """User granted rank and notified. Admin channel notified."""
+    pass
+
+async def test_proc_grant_rank_silent():
+    """User granted rank. No notifications sent."""
+    pass

@@ -79,14 +79,13 @@ def _next_state(state):
         return wrapper
     return decorator
 
-def _awaiting_approval(cog, ctx, member, *func_args, **func_kwargs):
+def _awaiting_approval(db, ctx, member, *func_args, **func_kwargs):
     """Raises exception if member is not awaiting approval.
     
     Can only be used within the Verify cog.
 
     Args:
-        func: Function invoked.
-        cog: Verify cog.
+        db: Database object.
         ctx: Context object associated with function invocation.
         member: Member to run check on.
 
@@ -94,7 +93,7 @@ def _awaiting_approval(cog, ctx, member, *func_args, **func_kwargs):
         CheckFailed: If invoker does not have verified role.
     """
     try:
-        member_data = cog.db.get_member_data(member.id)
+        member_data = db.get_member_data(member.id)
     except MemberNotFound:
         return False, "That user is not currently being verified."
     if member_data[MemberKey.ID_VER]:
@@ -568,7 +567,7 @@ async def state_await_approval():
 @pre(check(_awaiting_approval, notify=True))
 @pre(log_invoke(LOG))
 @post(log_success(LOG))
-async def proc_exec_approve(db, ver_role, admin_channel, exec, member):
+async def proc_exec_approve(db, admin_channel, member, exec, ver_role):
     """Approve member awaiting exec approval.
 
     Proceed to grant member verified rank.
@@ -652,12 +651,7 @@ async def proc_resend_id(db, channel, member):
         channel: Channel object associated with command invocation.
         member: Member object to retrieve ID attachments from.
     """
-    try:
-        member_data = db.get_member_data(member.id)
-    except MemberNotFound:
-        await member.send("You are not currently being verified.")
-        return
-    
+    member_data = db.get_member_data(member.id)
     message_id = member_data[MemberKey.ID_MESSAGE]
     try:
         message = await channel.fetch_message(message_id)
@@ -846,8 +840,8 @@ class Verify(Cog, name=COG_NAME):
             ctx: Context object associated with command invocation.
             member: Associated Member object to approve verification for.
         """
-        await proc_exec_approve(self.db, self.ver_role, self.admin_channel,
-            ctx.author, member)
+        await proc_exec_approve(self.db, self.admin_channel, member,
+            ctx.author, self.ver_role)
 
     @grp_verify.command(
         name="reject",
