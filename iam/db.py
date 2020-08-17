@@ -35,7 +35,7 @@ from iam.config import CONFIG_DIR, MAX_VER_EMAILS
 from iam.log import new_logger
 from iam.hooks import pre, post, log_invoke, log_success
 
-LOG = None
+LOG = new_logger(__name__)
 """Logger for this module."""
 
 COG_NAME = "Database"
@@ -56,8 +56,6 @@ def setup(bot):
     Args:
         bot: Bot object to add cog to.
     """
-    global LOG
-    LOG = new_logger(__name__)
     LOG.debug(f"Setting up {__name__} extension...")
     cog = Database(CERTIFICATE_FILE, LOG)
     LOG.debug(f"Initialised {COG_NAME} cog")

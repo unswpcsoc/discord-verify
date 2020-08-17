@@ -33,7 +33,7 @@ from iam.config import (
     EMAIL, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 )
 
-LOG = None
+LOG = new_logger(__name__)
 """Logger for this module."""
 
 COG_NAME = "Mail"
@@ -48,8 +48,6 @@ def setup(bot):
     Args:
         bot: Bot object to add cog to.
     """
-    global LOG
-    LOG = new_logger(__name__)
     LOG.debug(f"Setting up {__name__} extension...")
     cog = Mail(LOG)
     LOG.debug(f"Initialised {COG_NAME} cog")
