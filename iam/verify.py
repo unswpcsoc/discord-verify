@@ -336,7 +336,7 @@ async def state_await_zid(db, mail, member, member_data, zid):
     """
     zid = zid.lower()
     if not is_valid_zid(zid):
-        await member.send(f"Your zID must match the following format: "
+        await member.send("Your zID must match the following format: "
             "`zXXXXXXX`. Please try again")
         return
     email = f"{zid}@student.unsw.edu.au"
@@ -378,6 +378,8 @@ async def state_await_email(db, mail, member, member_data, email):
             "Please try again.")
         return
 
+    db.update_member_data(member.id, {MemberKey.EMAIL: email})
+
     await proc_send_email(db, mail, member, member_data, email)
 
 @pre(log_invoke(LOG))
@@ -415,7 +417,6 @@ async def proc_send_email(db, mail, member, member_data, email):
         return
 
     db.update_member_data(member.id, {
-        MemberKey.EMAIL: email,
         MemberKey.EMAIL_ATTEMPTS: email_attempts + 1
     })
     
