@@ -16,6 +16,15 @@ from iam.mail import MailError
 from iam.config import PREFIX, VER_ROLE
 import discord
 
+VALID_ZIDS = ["z5555555", "z1234567", "z0000000", "z5242579"]
+INVALID_ZIDS = ["5555555", "z12345678", "z0", "5242579z"]
+VALID_EMAILS = [
+    "thesabinelim@gmail.com", "arcdelegate@unswpcsoc.com",
+    "sabine.lim@unsw.edu.au", "z5242579@student.unsw.edu.au", "g@g.gg"
+]
+INVALID_EMAILS = ["a@a", "google.com", "email", "", "@gmail.com", "hi@"]
+SAMPLE_CODES = ["cf137a", "000000", "hello_world"]
+
 def filter_dict(dict, except_keys):
     return {k:v for k,v in dict.items() if k not in except_keys}
 
@@ -62,7 +71,7 @@ async def test_proc_begin_standard():
         {MemberKey.VER_STATE: State.AWAIT_NAME})
 
     # Ensure no side effects occurred.
-    member.add_roles.assert_not_called()
+    member.add_roles.assert_not_awaited()
 
 @pytest.mark.asyncio
 async def test_proc_begin_already_verifying():
@@ -86,7 +95,7 @@ async def test_proc_begin_already_verifying():
             f"verification process. To restart, type `{PREFIX}restart`.")
 
         # Ensure no side effects occurred.
-        member.add_roles.assert_not_called()
+        member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
 
@@ -165,7 +174,7 @@ async def test_proc_restart_standard():
             {MemberKey.VER_STATE: State.AWAIT_NAME})
 
         # Ensure no side effects occurred.
-        user.add_roles.assert_not_called()
+        user.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
@@ -186,7 +195,7 @@ async def test_proc_restart_never_verifying():
     user.send.assert_awaited_once_with("You are not currently being verified.")
 
     # Ensure no side effects occurred.
-    user.add_roles.assert_not_called()
+    user.add_roles.assert_not_awaited()
     db.set_member_data.assert_not_called()
     db.update_member_data.assert_not_called()
 
@@ -208,7 +217,7 @@ async def test_proc_restart_not_verifying():
     user.send.assert_awaited_once_with("You are not currently being verified.")
 
     # Ensure no side effects occurred.
-    user.add_roles.assert_not_called()
+    user.add_roles.assert_not_awaited()
     db.set_member_data.assert_not_called()
     db.update_member_data.assert_not_called()
 
@@ -234,7 +243,7 @@ async def test_proc_restart_already_verified():
         user.send.assert_awaited_once_with("You are already verified.")
 
         # Ensure no side effects occurred.
-        user.add_roles.assert_not_called()
+        user.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
 
@@ -264,7 +273,7 @@ async def test_state_await_name_standard():
     assert call_args == (member.id, {MemberKey.VER_STATE: State.AWAIT_UNSW})
 
     # Ensure no side effects occurred.
-    member.add_roles.assert_not_called()
+    member.add_roles.assert_not_awaited()
     db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
@@ -283,7 +292,7 @@ async def test_state_await_name_too_long():
         "fewer. Please try again.")
 
     # Ensure no side effects occurred.
-    member.add_roles.assert_not_called()
+    member.add_roles.assert_not_awaited()
     db.set_member_data.assert_not_called()
     db.update_member_data.assert_not_called()
 
@@ -306,7 +315,7 @@ async def test_state_await_unsw_yes():
             {MemberKey.VER_STATE: State.AWAIT_ZID})
 
         # Ensure no side effects occurred.
-        member.add_roles.assert_not_called()
+        member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
@@ -328,7 +337,7 @@ async def test_state_await_unsw_no():
             {MemberKey.VER_STATE: State.AWAIT_EMAIL})
 
         # Ensure no side effects occurred.
-        member.add_roles.assert_not_called()
+        member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
@@ -346,14 +355,14 @@ async def test_state_await_unsw_unrecognised():
     member.send.assert_awaited_once_with("Please type `y` or `n`.")
 
     # Ensure no side effects occurred.
-    member.add_roles.assert_not_called()
+    member.add_roles.assert_not_awaited()
     db.set_member_data.assert_not_called()
     db.update_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_state_await_zid_standard():
     """User sending valid zID moves on to proc_send_email."""
-    for zid in ["z5555555", "z1234567", "z0000000", "z5242579"]:
+    for zid in VALID_ZIDS:
         # Setup
         db = MagicMock()
         mail = MagicMock()
@@ -376,13 +385,13 @@ async def test_state_await_zid_standard():
             member_data, email)
 
         # Ensure no side effects occurred.
-        member.add_roles.assert_not_called()
+        member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_state_await_zid_invalid():
     """User sending invalid zID sent error."""
-    for zid in ["5555555", "z12345678", "z0", "5242579z"]:
+    for zid in INVALID_ZIDS:
         # Setup
         db = MagicMock()
         mail = MagicMock()
@@ -400,15 +409,14 @@ async def test_state_await_zid_invalid():
 
         # Ensure no side effects occurred.
         mock_proc_send_email.assert_not_called()
-        member.add_roles.assert_not_called()
+        member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_state_await_email_standard():
     """User sending valid email moves on to proc_send_email."""
-    for email in ["thesabinelim@gmail.com", "arcdelegate@unswpcsoc.com",
-        "sabine.lim@unsw.edu.au", "z5242579@student.unsw.edu.au", "g@g.gg"]:
+    for email in VALID_EMAILS:
         # Setup
         db = MagicMock()
         mail = MagicMock()
@@ -429,13 +437,13 @@ async def test_state_await_email_standard():
             member_data, email)
 
         # Ensure no side effects occurred.
-        member.add_roles.assert_not_called()
+        member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_state_await_email_invalid():
     """User sending invalid email sent error."""
-    for email in ["a@a", "google.com", "email", "", "@gmail.com", "hi@"]:
+    for email in INVALID_EMAILS:
         # Setup
         db = MagicMock()
         mail = MagicMock()
@@ -452,15 +460,14 @@ async def test_state_await_email_invalid():
 
         # Ensure no side effects occurred.
         mock_proc_send_email.assert_not_called()
-        member.add_roles.assert_not_called()
+        member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_send_email_standard():
     """User sent email moves on to code question."""
-    for email in ["thesabinelim@gmail.com", "arcdelegate@unswpcsoc.com",
-        "sabine.lim@unsw.edu.au", "z5242579@student.unsw.edu.au", "g@g.gg"]:
+    for email in VALID_EMAILS:
         # Setup
         db = MagicMock()
         mail = MagicMock()
@@ -480,7 +487,8 @@ async def test_proc_send_email_standard():
         # Ensure user entry in database updated accordingly.
         call_args_list = db.update_member_data.call_args_list
         assert len(call_args_list) == 2
-        assert call_args_list[0].args == (member.id, {
+        call_args = call_args_list[0].args
+        assert call_args == (member.id, {
             MemberKey.EMAIL_ATTEMPTS: member_data[MemberKey.EMAIL_ATTEMPTS] + 1
         })
 
@@ -490,19 +498,19 @@ async def test_proc_send_email_standard():
             f"You can request another email by typing `{PREFIX}resend`.")
 
         # Ensure user state updated to awaiting code.
-        assert call_args_list[1].args == (member.id, {
+        call_args = call_args_list[1].args
+        assert call_args == (member.id, {
             MemberKey.VER_STATE: State.AWAIT_CODE
         })
 
         # Ensure no side effects occurred.
-        member.add_roles.assert_not_called()
+        member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_send_email_out_of_attempts():
     """User who was sent too many emails previously sent error."""
-    for email in ["thesabinelim@gmail.com", "arcdelegate@unswpcsoc.com",
-        "sabine.lim@unsw.edu.au", "z5242579@student.unsw.edu.au", "g@g.gg"]:
+    for email in VALID_EMAILS:
         # Setup
         db = MagicMock()
         mail = MagicMock()
@@ -521,15 +529,14 @@ async def test_proc_send_email_out_of_attempts():
         mail.send_email.assert_not_called()
 
         # Ensure no side effects occurred.
-        member.add_roles.assert_not_called()
+        member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_send_email_failed():
     """When email bounces, user sent error without using up an attempt."""
-    for email in ["thesabinelim@gmail.com", "arcdelegate@unswpcsoc.com",
-        "sabine.lim@unsw.edu.au", "z5242579@student.unsw.edu.au", "g@g.gg"]:
+    for email in VALID_EMAILS:
         # Setup
         db = MagicMock()
         mail = MagicMock()
@@ -553,24 +560,150 @@ async def test_proc_send_email_failed():
             "details have been entered correctly.")
 
         # Ensure no side effects occurred.
-        member.add_roles.assert_not_called()
+        member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_state_await_code_unsw():
     """Student sending matching code verified."""
-    pass
+    for zid in VALID_ZIDS:
+        for code in SAMPLE_CODES:
+            # Setup
+            db = MagicMock()
+            ver_role = AsyncMock()
+            member = new_mock_user(0)
+            admin_channel = new_mock_channel(1)
+            member_data = make_def_member_data()
+            member_data[MemberKey.ZID] = zid
+            before_time = time()
+
+            # Call
+            with patch("iam.verify.get_code") as mock_get_code:
+                mock_get_code.return_value = code
+                with patch("iam.verify.proc_grant_rank") as \
+                    mock_proc_grant_rank:
+                    await state_await_code(db, ver_role, admin_channel, member,
+                        member_data, code)
+
+            # Ensure user entry in DB updated correctly.
+            call_args_list = db.update_member_data.call_args_list
+            assert len(call_args_list) == 2
+            call_args = call_args_list[0].args
+            assert call_args[0] == member.id
+            assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == \
+                {MemberKey.EMAIL_VER: True}
+            assert call_args[1][MemberKey.VER_TIME] >= before_time and \
+                call_args[1][MemberKey.VER_TIME] <= time()
+            call_args = call_args_list[1].args
+            assert call_args == (member.id, {MemberKey.ID_VER: True})
+
+            # Ensure user granted rank.
+            mock_proc_grant_rank.assert_awaited_once()
+
+            # Ensure no side effects occurred.
+            member.add_roles.assert_not_called()
+            db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_state_await_code_non_unsw():
     """Non-student sending matching code moves on to ID question."""
-    pass
+    """Student sending matching code verified."""
+    for code in SAMPLE_CODES:
+        # Setup
+        db = MagicMock()
+        ver_role = AsyncMock()
+        member = new_mock_user(0)
+        admin_channel = new_mock_channel(1)
+        member_data = make_def_member_data()
+        before_time = time()
+
+        # Call
+        with patch("iam.verify.get_code") as mock_get_code:
+            mock_get_code.return_value = code
+            await state_await_code(db, ver_role, admin_channel, member,
+                member_data, code)
+
+        # Ensure user entry in DB updated correctly.
+        call_args_list = db.update_member_data.call_args_list
+        assert len(call_args_list) == 2
+        call_args = call_args_list[0].args
+        assert call_args[0] == member.id
+        assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == \
+            {MemberKey.EMAIL_VER: True}
+        assert call_args[1][MemberKey.VER_TIME] >= before_time and \
+            call_args[1][MemberKey.VER_TIME] <= time()
+
+        # Ensure user was sent prompt.
+        assert member.send.awaited_once_with("Please send a message with "
+            "a photo of your government-issued ID attached.")
+
+        # Ensure user state updated to awaiting ID.
+        call_args = call_args_list[1].args
+        assert call_args == (member.id,
+            {MemberKey.VER_STATE: State.AWAIT_ID})
+
+        # Ensure no side effects occurred.
+        member.add_roles.assert_not_called()
+        db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_state_await_code_invalid():
-    """User sending non-matching code sent error."""
-    pass
+async def test_state_await_code_invalid_unsw():
+    """Student sending non-matching code sent error."""
+    for zid in VALID_ZIDS:
+        for expected_code in SAMPLE_CODES:
+            for received_code in ["wowee", "", "1nv4l1d", "!"]:
+                # Setup
+                db = MagicMock()
+                ver_role = AsyncMock()
+                member = new_mock_user(0)
+                admin_channel = new_mock_channel(1)
+                member_data = make_def_member_data()
+                member_data[MemberKey.ZID] = zid
+                before_time = time()
+
+                # Call
+                with patch("iam.verify.get_code") as mock_get_code:
+                    mock_get_code.return_value = expected_code
+                    await state_await_code(db, ver_role, admin_channel, member,
+                        member_data, received_code)
+
+                # Ensure user was sent error.    
+                member.send.assert_awaited_once_with("That was not the "
+                    "correct code. Please try again.\nYou can request another "
+                    f"email by typing `{PREFIX}resend`.")
+
+                # Ensure no side effects occurred.
+                member.add_roles.assert_not_called()
+                db.set_member_data.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_state_await_code_invalid_non_unsw():
+    """Non-student sending non-matching code sent error."""
+    for expected_code in SAMPLE_CODES:
+        for received_code in ["wowee", "", "1nv4l1d", "!"]:
+            # Setup
+            db = MagicMock()
+            ver_role = AsyncMock()
+            member = new_mock_user(0)
+            admin_channel = new_mock_channel(1)
+            member_data = make_def_member_data()
+            before_time = time()
+
+            # Call
+            with patch("iam.verify.get_code") as mock_get_code:
+                mock_get_code.return_value = expected_code
+                await state_await_code(db, ver_role, admin_channel, member,
+                    member_data, received_code)
+
+            # Ensure user was sent error.    
+            member.send.assert_awaited_once_with("That was not the "
+                "correct code. Please try again.\nYou can request another "
+                f"email by typing `{PREFIX}resend`.")
+
+            # Ensure no side effects occurred.
+            member.add_roles.assert_not_called()
+            db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_resend_email_standard():
