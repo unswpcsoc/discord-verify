@@ -708,12 +708,52 @@ async def test_state_await_code_invalid_non_unsw():
 @pytest.mark.asyncio
 async def test_proc_resend_email_standard():
     """User requesting resend sent another email."""
-    pass
+    for email in VALID_EMAILS:
+        # Setup
+        db = MagicMock()
+        mail = MagicMock()
+        member = new_mock_user(0)
+        member_data = make_def_member_data()
+        member_data[MemberKey.EMAIL] = email
+        member_data[MemberKey.VER_STATE] = State.AWAIT_CODE
+
+        # Call
+        with patch("iam.verify.proc_send_email") as mock_proc_send_email:
+            await proc_resend_email(db, mail, member, member_data)
+
+        # Ensure proc_send_email called.
+        mock_proc_send_email.assert_awaited_once_with(db, mail, member,
+            member_data, email)
+
+        # Ensure no side effects occurred.
+        member.add_roles.assert_not_called()
+        db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_proc_resend_email_never_sent():
-    """User never sent email sent error."""
-    pass
+async def test_proc_resend_email_not_awaiting_code():
+    """User not awaiting code ignored."""
+    for email in VALID_EMAILS:
+        for state in State:
+            if state == State.AWAIT_CODE:
+                pass
+        # Setup
+        db = MagicMock()
+        mail = MagicMock()
+        member = new_mock_user(0)
+        member_data = make_def_member_data()
+        member_data[MemberKey.EMAIL] = email
+        member_data[MemberKey.VER_STATE] = state
+
+        # Call
+        with patch("iam.verify.proc_send_email") as mock_proc_send_email:
+            await proc_resend_email(db, mail, member, member_data)
+
+        # Ensure proc_send_email not called.
+        mock_proc_send_email.assert_not_awaited()
+
+        # Ensure no side effects occurred.
+        member.add_roles.assert_not_called()
+        db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_state_await_id_standard():
