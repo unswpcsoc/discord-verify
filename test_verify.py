@@ -1164,8 +1164,37 @@ async def test_proc_verify_manual_invalid_email():
 @pytest.mark.asyncio
 async def test_proc_grant_rank_standard():
     """User granted rank and notified. Admin channel notified."""
-    pass
+    # Setup
+    member = new_mock_user(0)
+    admin_channel = new_mock_channel(1)
+    ver_role = AsyncMock()
 
+    # Call
+    await proc_grant_rank(ver_role, admin_channel, member)
+
+    # Ensure user was granted rank.
+    member.add_roles.assert_awaited_once_with(ver_role)
+
+    # Ensure notifications were sent.
+    member.send.assert_awaited_once_with("You are now verified. Welcome to "
+        "the server!")
+    admin_channel.send.assert_awaited_once_with(f"{member.mention} is now "
+        "verified.")
+
+@pytest.mark.asyncio
 async def test_proc_grant_rank_silent():
     """User granted rank. No notifications sent."""
-    pass
+    # Setup
+    member = new_mock_user(0)
+    admin_channel = new_mock_channel(1)
+    ver_role = AsyncMock()
+
+    # Call
+    await proc_grant_rank(ver_role, admin_channel, member, silent=True)
+
+    # Ensure user was granted rank.
+    member.add_roles.assert_awaited_once_with(ver_role)
+
+    # Ensure no side effects occurred.
+    member.send.assert_not_awaited()
+    admin_channel.send.assert_not_awaited()
