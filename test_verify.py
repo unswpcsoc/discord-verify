@@ -39,6 +39,11 @@ def new_mock_user(id):
     user.typing = MagicMock()
     return user
 
+def new_mock_guild(id):
+    guild = AsyncMock()
+    guild.id = id
+    return guild
+
 def new_mock_channel(id):
     channel = AsyncMock()
     channel.id = id
@@ -1119,7 +1124,18 @@ async def test_proc_display_pending_standard():
 @pytest.mark.asyncio
 async def test_proc_display_pending_none():
     """Send error if no pending approvals."""
-    pass
+    # Setup
+    db = MagicMock()
+    db.get_unverified_members_data.return_value = []
+    guild = new_mock_guild(0)
+    channel = new_mock_channel(1)
+
+    # Call
+    await proc_display_pending(db, guild, channel)
+
+    # Ensure error sent in channel.
+    channel.send.assert_awaited_once_with("No members currently awaiting "
+        "approval.")
 
 @pytest.mark.asyncio
 async def test_proc_resend_id_standard():
