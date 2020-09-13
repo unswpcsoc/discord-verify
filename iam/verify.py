@@ -567,15 +567,17 @@ async def state_await_approval():
 @pre(check(_awaiting_approval, notify=True))
 @pre(log_invoke(LOG))
 @post(log_success(LOG))
-async def proc_exec_approve(db, admin_channel, member, exec, ver_role):
+async def proc_exec_approve(db, channel, member, exec, ver_role):
     """Approve member awaiting exec approval.
 
     Proceed to grant member verified rank.
 
     Args:
         db: Database object.
-        exec: Member object representing approving exec.
+        channel: Channel object associated with command invocation.
         member: Member object to approve verification for.
+        exec: Member object representing approving exec.
+        ver_role: Verified role to grant to member.
     """
     db.update_member_data(member.id, {
         MemberKey.ID_VER: True,
@@ -840,8 +842,8 @@ class Verify(Cog, name=COG_NAME):
             ctx: Context object associated with command invocation.
             member: Associated Member object to approve verification for.
         """
-        await proc_exec_approve(self.db, self.admin_channel, member,
-            ctx.author, self.ver_role)
+        await proc_exec_approve(self.db, ctx.channel, member, ctx.author,
+            self.ver_role)
 
     @grp_verify.command(
         name="reject",
