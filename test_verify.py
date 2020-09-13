@@ -13,6 +13,7 @@ from iam.verify import (
 from iam.db import (
     MemberKey, MemberNotFound, make_def_member_data, MAX_VER_EMAILS
 )
+from iam.hooks import CheckFailed
 from iam.mail import MailError
 from iam.config import PREFIX, VER_ROLE
 import discord
@@ -397,6 +398,7 @@ async def test_state_await_zid_standard():
             member_data, email)
 
         # Ensure no side effects occurred.
+        member.send.assert_not_awaited()
         member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
 
@@ -449,6 +451,7 @@ async def test_state_await_email_standard():
             member_data, email)
 
         # Ensure no side effects occurred.
+        member.send.assert_not_awaited()
         member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
 
@@ -614,6 +617,7 @@ async def test_state_await_code_unsw():
             mock_proc_grant_rank.assert_awaited_once()
 
             # Ensure no side effects occurred.
+            member.send.assert_not_awaited()
             member.add_roles.assert_not_called()
             db.set_member_data.assert_not_called()
 
@@ -738,6 +742,7 @@ async def test_proc_resend_email_standard():
             member_data, email)
 
         # Ensure no side effects occurred.
+        member.send.assert_not_awaited()
         member.add_roles.assert_not_called()
         db.set_member_data.assert_not_called()
 
@@ -764,6 +769,7 @@ async def test_proc_resend_email_not_awaiting_code():
         mock_proc_send_email.assert_not_awaited()
 
         # Ensure no side effects occurred.
+        member.send.assert_not_awaited()
         member.add_roles.assert_not_called()
         db.set_member_data.assert_not_called()
 
@@ -810,6 +816,10 @@ async def test_state_await_id_no_attachments():
 
     # Ensure proc_forward_id_admins not called.
     mock_proc_forward_id_admins.assert_not_awaited()
+
+    # Ensure user was sent error.
+    member.send.assert_awaited_once_with("No attachments received. Please try "
+        "again.")
 
     # Ensure no side effects occurred.
     member.add_roles.assert_not_called()
@@ -862,21 +872,127 @@ async def test_proc_forward_id_admins_standard():
 @pytest.mark.asyncio
 async def test_proc_exec_approve_standard():
     """Exec approving verifying user grants rank to user."""
-    pass
+    # Setup
+    db = MagicMock()
+    member = new_mock_user(0)
+    member_data = make_def_member_data()
+    member_data[MemberKey.VER_STATE] = State.AWAIT_APPROVAL
+    db.get_member_data.return_value = member_data
+    exec = new_mock_user(1)
+    channel = new_mock_channel(2)
+    ver_role = AsyncMock()
+
+    # Call
+    with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
+        await proc_exec_approve(db, channel, member, exec, ver_role)
+
+    # Ensure user entry in database updated accordingly.
+    db.update_member_data.assert_called_once_with(member.id, {
+        MemberKey.ID_VER: True,
+        MemberKey.VER_EXEC: exec.id
+    })
+
+    # Ensure user granted rank.
+    mock_proc_grant_rank.assert_awaited_once_with(ver_role, channel, member)
+
+    # Ensure no side effects occurred.
+    member.send.assert_not_awaited()
+    member.add_roles.assert_not_called()
+    db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_exec_approve_not_awaiting():
     """Exec approving user not awaiting approval sends error."""
-    pass
+    for state in State:
+        if state == State.AWAIT_APPROVAL:
+            continue
+        # Setup
+        db = MagicMock()
+        member = new_mock_user(0)
+        member_data = make_def_member_data()
+        member_data[MemberKey.VER_STATE] = state
+        db.get_member_data.return_value = member_data
+        exec = new_mock_user(1)
+        channel = new_mock_channel(2)
+        ver_role = AsyncMock()
+
+        # Call
+        with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
+            with pytest.raises(CheckFailed) as exc:
+                await proc_exec_approve(db, channel, member, exec, ver_role)
+        await exc.value.notify()
+
+        # Ensure error sent to channel.
+        channel.send.assert_awaited_once_with("That user is not awaiting "
+            "approval.")
+
+        # Ensure no side effects occurred.
+        mock_proc_grant_rank.assert_not_awaited()
+        member.send.assert_not_awaited()
+        member.add_roles.assert_not_called()
+        db.update_member_data.assert_not_called()
+        db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_proc_exec_approve_not_verifying():
-    """Exec approving user not verifying sends error."""
-    pass
+async def test_proc_exec_approve_already_verified():
+    """Exec approving user already verified sends error."""
+    for state in State:
+        # Setup
+        db = MagicMock()
+        member = new_mock_user(0)
+        member_data = make_def_member_data()
+        member_data[MemberKey.ID_VER] = True
+        member_data[MemberKey.VER_STATE] = state
+        db.get_member_data.return_value = member_data
+        exec = new_mock_user(1)
+        channel = new_mock_channel(2)
+        ver_role = AsyncMock()
+
+        # Call
+        with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
+            with pytest.raises(CheckFailed) as exc:
+                await proc_exec_approve(db, channel, member, exec, ver_role)
+        await exc.value.notify()
+
+        # Ensure error sent to channel.
+        channel.send.assert_awaited_once_with("That user is already verified.")
+
+        # Ensure no side effects occurred.
+        mock_proc_grant_rank.assert_not_awaited()
+        member.send.assert_not_awaited()
+        member.add_roles.assert_not_called()
+        db.update_member_data.assert_not_called()
+        db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_exec_approve_never_verifying():
     """Exec approving user never started verification sends error."""
+    for state in State:
+        # Setup
+        db = MagicMock()
+        member = new_mock_user(0)
+        db.get_member_data = MagicMock(side_effect=
+            MemberNotFound(member.id, ""))
+        exec = new_mock_user(1)
+        channel = new_mock_channel(2)
+        ver_role = AsyncMock()
+
+        # Call
+        with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
+            with pytest.raises(CheckFailed) as exc:
+                await proc_exec_approve(db, channel, member, exec, ver_role)
+        await exc.value.notify()
+
+        # Ensure error sent to channel.
+        channel.send.assert_awaited_once_with("That user is not currently "
+            "being verified.")
+
+        # Ensure no side effects occurred.
+        mock_proc_grant_rank.assert_not_awaited()
+        member.send.assert_not_awaited()
+        member.add_roles.assert_not_called()
+        db.update_member_data.assert_not_called()
+        db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_exec_reject_standard():
