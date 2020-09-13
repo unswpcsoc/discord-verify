@@ -3,6 +3,7 @@
 import pytest
 from time import time
 from unittest.mock import patch, AsyncMock, MagicMock
+from discord import NotFound
 from iam.verify import (
     State, proc_begin, proc_restart, state_await_name, state_await_unsw,
     state_await_zid, state_await_email, proc_send_email, state_await_code,
@@ -47,11 +48,13 @@ def new_mock_guild(id):
 def new_mock_channel(id):
     channel = AsyncMock()
     channel.id = id
+    channel.typing = MagicMock()
     return channel
 
-def new_mock_message(id):
+def new_mock_message(id, attachments=[]):
     message = AsyncMock()
     message.id = id
+    message.attachments = attachments
     return message
 
 def new_mock_attachment(id):
@@ -1140,27 +1143,153 @@ async def test_proc_display_pending_none():
 @pytest.mark.asyncio
 async def test_proc_resend_id_standard():
     """Retrieve previous message attachments and resend."""
-    pass
+    for full_name in VALID_NAMES:
+        for n_attach in range(1, 11):
+            # Setup
+            db = MagicMock()
+            member = new_mock_user(0)
+            member_data = make_def_member_data()
+            member_data[MemberKey.NAME] = full_name
+            member_data[MemberKey.ID_MESSAGE] = n_attach
+            member_data[MemberKey.VER_STATE] = State.AWAIT_APPROVAL
+            db.get_member_data.return_value = member_data
+            channel = new_mock_channel(1)
+            attachments = [new_mock_attachment(i) for i in range(n_attach)]
+            channel.fetch_message.return_value = new_mock_message(n_attach,
+                attachments=attachments)
+
+            # Call
+            await proc_resend_id(db, channel, member)
+
+            # Ensure right message was fetched.
+            channel.fetch_message.assert_awaited_once_with(n_attach)
+
+            # Ensure attachments forwarded to channel.
+            channel.send.assert_awaited_once_with("Previously received "
+                f"attachment(s) from {member.mention}. Please verify that "
+                f"name on ID is `{full_name}`, then type `{PREFIX}verify "
+                f"approve {member.id}` or `{PREFIX}verify reject {member.id} "
+                "\"reason\"`.", files=[await a.to_file() for a in attachments])
+
+            # Ensure no side effects occurred.
+            member.send.assert_not_awaited()
+            member.add_roles.assert_not_called()
+            db.update_member_data.assert_not_called()
+            db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_resend_id_not_awaiting():
     """Send error if user not awaiting approval."""
-    pass
+    for i in range(10):
+        for state in State:
+            if state == State.AWAIT_APPROVAL:
+                continue
+            # Setup
+            db = MagicMock()
+            member = new_mock_user(0)
+            member_data = make_def_member_data()
+            member_data[MemberKey.ID_MESSAGE] = i
+            member_data[MemberKey.VER_STATE] = state
+            db.get_member_data.return_value = member_data
+            channel = new_mock_channel(1)
+
+            # Call
+            with pytest.raises(CheckFailed) as exc:
+                await proc_resend_id(db, channel, member)
+            await exc.value.notify()
+
+            # Ensure error sent in channel.
+            channel.send.assert_awaited_once_with("That user is not "
+                "awaiting approval.")
+
+            # Ensure no side effects occurred.
+            member.send.assert_not_awaited()
+            member.add_roles.assert_not_called()
+            db.update_member_data.assert_not_called()
+            db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_proc_resend_id_not_verifying():
-    """Send error if user not verifying."""
-    pass
+async def test_proc_resend_id_already_verified():
+    """Send error if user already verified."""
+    for i in range(10):
+        for state in State:
+            # Setup
+            db = MagicMock()
+            member = new_mock_user(0)
+            member_data = make_def_member_data()
+            member_data[MemberKey.ID_MESSAGE] = i
+            member_data[MemberKey.ID_VER] = True
+            member_data[MemberKey.VER_STATE] = state
+            db.get_member_data.return_value = member_data
+            channel = new_mock_channel(1)
+
+            # Call
+            with pytest.raises(CheckFailed) as exc:
+                await proc_resend_id(db, channel, member)
+            await exc.value.notify()
+
+            # Ensure error sent in channel.
+            channel.send.assert_awaited_once_with("That user is already "
+                "verified.")
+
+            # Ensure no side effects occurred.
+            member.send.assert_not_awaited()
+            member.add_roles.assert_not_called()
+            db.update_member_data.assert_not_called()
+            db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_resend_id_never_verifying():
     """Send error if user never started verification."""
-    pass
+    # Setup
+    db = MagicMock()
+    member = new_mock_user(0)
+    db.get_member_data = MagicMock(side_effect=
+        MemberNotFound(member.id, ""))
+    channel = new_mock_channel(1)
+
+    # Call
+    with pytest.raises(CheckFailed) as exc:
+        await proc_resend_id(db, channel, member)
+    await exc.value.notify()
+
+    # Ensure error sent in channel.
+    channel.send.assert_awaited_once_with("That user is not currently "
+        "being verified.")
+
+    # Ensure no side effects occurred.
+    member.send.assert_not_awaited()
+    member.add_roles.assert_not_called()
+    db.update_member_data.assert_not_called()
+    db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_resend_id_not_found():
     """Send error if previous message containing attachments not found."""
-    pass
+    for i in range(10):
+        # Setup
+        db = MagicMock()
+        member = new_mock_user(0)
+        member_data = make_def_member_data()
+        member_data[MemberKey.ID_MESSAGE] = i
+        member_data[MemberKey.VER_STATE] = State.AWAIT_APPROVAL
+        db.get_member_data.return_value = member_data
+        channel = new_mock_channel(1)
+        channel.fetch_message = MagicMock(side_effect=
+            NotFound(MagicMock(), MagicMock()))
+
+        # Call
+        await proc_resend_id(db, channel, member)
+
+        # Ensure error sent in channel.
+        channel.send.assert_awaited_once_with("Could not find previous message"
+            " in this channel containing attachments! Perhaps it was deleted?")
+
+        # Ensure no side effects occurred.
+        member.send.assert_not_awaited()
+        member.add_roles.assert_not_called()
+        db.update_member_data.assert_not_called()
+        db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_verify_manual_standard():
