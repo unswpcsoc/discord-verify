@@ -6,8 +6,9 @@ from unittest.mock import patch, AsyncMock, MagicMock
 from iam.verify import (
     State, proc_begin, proc_restart, state_await_name, state_await_unsw,
     state_await_zid, state_await_email, proc_send_email, state_await_code,
-    proc_resend_email, state_await_id, proc_exec_approve, proc_exec_reject,
-    proc_resend_id, proc_display_pending, proc_verify_manual, proc_grant_rank
+    proc_resend_email, state_await_id, proc_forward_id_admins,
+    proc_exec_approve, proc_exec_reject, proc_resend_id, proc_display_pending,
+    proc_verify_manual, proc_grant_rank
 )
 from iam.db import (
     MemberKey, MemberNotFound, make_def_member_data, MAX_VER_EMAILS
@@ -16,6 +17,7 @@ from iam.mail import MailError
 from iam.config import PREFIX, VER_ROLE
 import discord
 
+VALID_NAMES = ["Sabine Lim", "Test User", "kek", "", "X Æ A-12"]
 VALID_ZIDS = ["z5555555", "z1234567", "z0000000", "z5242579"]
 INVALID_ZIDS = ["5555555", "z12345678", "z0", "5242579z"]
 VALID_EMAILS = [
@@ -39,6 +41,16 @@ def new_mock_channel(id):
     channel = AsyncMock()
     channel.id = id
     return channel
+
+def new_mock_message(id):
+    message = AsyncMock()
+    message.id = id
+    return message
+
+def new_mock_attachment(id):
+    attachment = AsyncMock()
+    attachment.to_file.return_value = id
+    return attachment
 
 @pytest.mark.asyncio
 async def test_proc_begin_standard():
@@ -758,12 +770,94 @@ async def test_proc_resend_email_not_awaiting_code():
 @pytest.mark.asyncio
 async def test_state_await_id_standard():
     """User sending attachments forwarded to admin channel."""
-    pass
+    for n_attach in range(1, 11):
+        # Setup
+        db = MagicMock()
+        member = new_mock_user(0)
+        admin_channel = new_mock_channel(1)
+        member_data = make_def_member_data()
+        attachments = [new_mock_attachment(i) for i in range(n_attach)]
+
+        # Call
+        with patch("iam.verify.proc_forward_id_admins") as \
+            mock_proc_forward_id_admins:
+            await state_await_id(db, admin_channel, member, member_data,
+                attachments)
+
+        # Ensure proc_forward_id_admins called.
+        mock_proc_forward_id_admins.assert_awaited_once_with(db, member,
+            admin_channel, member_data, attachments)
+
+        # Ensure no side effects occurred.
+        member.add_roles.assert_not_called()
+        db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_state_await_id_no_attachments():
     """User sending no attachments sent error."""
-    pass
+    # Setup
+    db = MagicMock()
+    member = new_mock_user(0)
+    admin_channel = new_mock_channel(1)
+    member_data = make_def_member_data()
+    attachments = []
+
+    # Call
+    with patch("iam.verify.proc_forward_id_admins") as \
+        mock_proc_forward_id_admins:
+        await state_await_id(db, admin_channel, member, member_data,
+            attachments)
+
+    # Ensure proc_forward_id_admins not called.
+    mock_proc_forward_id_admins.assert_not_awaited()
+
+    # Ensure no side effects occurred.
+    member.add_roles.assert_not_called()
+    db.set_member_data.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_proc_forward_id_admins_standard():
+    """Message containing attachments sent to admin channel."""
+    for full_name in VALID_NAMES:
+        for n_attach in range(1, 11):
+            # Setup
+            db = MagicMock()
+            member = new_mock_user(0)
+            admin_channel = new_mock_channel(1)
+            admin_channel.send.return_value = new_mock_message(1337)
+            member_data = make_def_member_data()
+            member_data[MemberKey.NAME] = full_name
+            attachments = [new_mock_attachment(i) for i in range(n_attach)]
+
+            # Call
+            await proc_forward_id_admins(db, member, admin_channel,
+                member_data, attachments)
+
+            # Ensure attachments forwarded to admin channel.
+            admin_channel.send.assert_awaited_once_with("Received "
+                f"attachment(s) from {member.mention}. Please verify that "
+                f"name on ID is `{full_name}`, then type `{PREFIX}verify "
+                f"approve {member.id}` or `{PREFIX}verify reject {member.id} "
+                "\"reason\"`.", files=[await a.to_file() for a in attachments])
+
+            # Ensure user entry in database updated accordingly.
+            call_args_list = db.update_member_data.call_args_list
+            assert len(call_args_list) == 2
+            call_args = call_args_list[0].args
+            assert call_args == (member.id, {MemberKey.ID_MESSAGE: 1337})
+
+            # Ensure notification sent to user.
+            member.send.assert_awaited_once_with("Your attachment(s) have "
+                "been forwarded to the execs. Please wait.")
+
+            # Ensure user state updated to awaiting approval.
+            call_args = call_args_list[1].args
+            assert call_args == (member.id,
+                {MemberKey.VER_STATE: State.AWAIT_APPROVAL})
+
+            # Ensure no side effects occurred.
+            member.add_roles.assert_not_called()
+            db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_exec_approve_standard():
