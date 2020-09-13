@@ -583,7 +583,7 @@ async def proc_exec_approve(db, channel, member, exec, ver_role):
         MemberKey.ID_VER: True,
         MemberKey.VER_EXEC: exec.id
     })
-    await proc_grant_rank(ver_role, admin_channel, member)
+    await proc_grant_rank(ver_role, channel, member)
 
 @pre(check(_awaiting_approval, notify=True))
 @pre(log_invoke(LOG))
