@@ -27,6 +27,7 @@ VALID_EMAILS = [
 ]
 INVALID_EMAILS = ["a@a", "google.com", "email", "", "@gmail.com", "hi@"]
 SAMPLE_CODES = ["cf137a", "000000", "hello_world"]
+SAMPLE_REJECT_REASONS = ["photo unclear", "", "u suck", "invalid", "123456"]
 
 def filter_dict(dict, except_keys):
     return {k:v for k,v in dict.items() if k not in except_keys}
@@ -997,21 +998,118 @@ async def test_proc_exec_approve_never_verifying():
 @pytest.mark.asyncio
 async def test_proc_exec_reject_standard():
     """Exec rejecting verifying user notifies user and updates accordingly."""
-    pass
+    for reason in SAMPLE_REJECT_REASONS:
+        # Setup
+        db = MagicMock()
+        member = new_mock_user(0)
+        member_data = make_def_member_data()
+        member_data[MemberKey.VER_STATE] = State.AWAIT_APPROVAL
+        db.get_member_data.return_value = member_data
+        channel = new_mock_channel(1)
+
+        # Call
+        await proc_exec_reject(db, channel, member, reason)
+
+        # Ensure user entry in database updated accordingly.
+        db.update_member_data.assert_called_once_with(member.id, {
+            MemberKey.VER_STATE: None
+        })
+
+        # Ensure user was sent error.
+        member.send.assert_awaited_once_with("Your verification request has "
+            f"been denied for the following reason(s): `{reason}`.\n"
+            f"You can start a new request by typing `{PREFIX}verify` in the "
+            "verification channel.")
+
+        # Ensure notification sent in channel.
+        channel.send.assert_awaited_once_with("Rejected verification request "
+            f"from {member.mention}.")
+
+        # Ensure no side effects occurred.
+        member.add_roles.assert_not_called()
+        db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_exec_reject_not_awaiting():
     """Exec rejecting user not verifying sends error."""
-    pass
+    for state in State:
+        if state == State.AWAIT_APPROVAL:
+            continue
+        # Setup
+        db = MagicMock()
+        member = new_mock_user(0)
+        member_data = make_def_member_data()
+        member_data[MemberKey.VER_STATE] = state
+        db.get_member_data.return_value = member_data
+        channel = new_mock_channel(1)
+
+        # Call
+        with pytest.raises(CheckFailed) as exc:
+            await proc_exec_reject(db, channel, member, "test")
+        await exc.value.notify()
+
+        # Ensure error sent to channel.
+        channel.send.assert_awaited_once_with("That user is not awaiting "
+            "approval.")
+
+        # Ensure no side effects occurred.
+        member.send.assert_not_awaited()
+        member.add_roles.assert_not_called()
+        db.update_member_data.assert_not_called()
+        db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_proc_exec_reject_not_verifying():
-    """Exec rejecting user not verifying sends error."""
-    pass
+async def test_proc_exec_reject_already_verified():
+    """Exec rejecting user already verified sends error."""
+    for state in State:
+        # Setup
+        db = MagicMock()
+        member = new_mock_user(0)
+        member_data = make_def_member_data()
+        member_data[MemberKey.ID_VER] = True
+        member_data[MemberKey.VER_STATE] = state
+        db.get_member_data.return_value = member_data
+        channel = new_mock_channel(1)
+
+        # Call
+        with pytest.raises(CheckFailed) as exc:
+            await proc_exec_reject(db, channel, member, "test")
+        await exc.value.notify()
+
+        # Ensure error sent to channel.
+        channel.send.assert_awaited_once_with("That user is already verified.")
+
+        # Ensure no side effects occurred.
+        member.send.assert_not_awaited()
+        member.add_roles.assert_not_called()
+        db.update_member_data.assert_not_called()
+        db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_exec_reject_never_verifying():
     """Exec rejecting user never started verification sends error."""
+    for state in State:
+        # Setup
+        db = MagicMock()
+        member = new_mock_user(0)
+        db.get_member_data = MagicMock(side_effect=
+            MemberNotFound(member.id, ""))
+        channel = new_mock_channel(1)
+
+        # Call
+        with pytest.raises(CheckFailed) as exc:
+            await proc_exec_reject(db, channel, member, "test")
+        await exc.value.notify()
+
+        # Ensure error sent to channel.
+        channel.send.assert_awaited_once_with("That user is not currently "
+            "being verified.")
+
+        # Ensure no side effects occurred.
+        member.send.assert_not_awaited()
+        member.add_roles.assert_not_called()
+        db.update_member_data.assert_not_called()
+        db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_display_pending_standard():
