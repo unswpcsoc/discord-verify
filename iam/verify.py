@@ -658,7 +658,7 @@ async def proc_resend_id(db, channel, member):
     try:
         message = await channel.fetch_message(message_id)
     except NotFound:
-        await channel.send("Could not find previous message in this channel"
+        await channel.send("Could not find previous message in this channel "
             "containing attachments! Perhaps it was deleted?")
         return
     attachments = message.attachments
