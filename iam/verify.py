@@ -229,6 +229,10 @@ async def proc_restart(db, user):
     elif member_data[MemberKey.VER_STATE] is None:
         await user.send("You are not currently being verified.")
         return
+    elif member_data[MemberKey.VER_STATE] in \
+        [State.AWAIT_ID, State.AWAIT_APPROVAL]:
+        await user.send("You cannot restart after verifying your email!")
+        return
 
     async with user.typing():
         db.update_member_data(user.id, {
