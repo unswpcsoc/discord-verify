@@ -28,7 +28,10 @@ SOFTWARE.
 import sys
 import traceback
 from logging import INFO
-from discord.ext.commands import Bot, CommandNotFound, DisabledCommand
+from discord.ext.commands import (
+    Bot, CommandNotFound, DisabledCommand, BadArgument,
+    TooManyArguments, ArgumentParsingError, MissingRequiredArgument
+)
 
 from iam.log import new_logger
 from iam.config import BOT_TOKEN, PREFIX
@@ -79,7 +82,11 @@ def main():
             Any exception that is not handled by the above.
         """
         if isinstance(error, CommandNotFound) \
-            or isinstance(error, DisabledCommand):
+            or isinstance(error, DisabledCommand) \
+            or isinstance(error, MissingRequiredArgument) \
+            or isinstance(error, TooManyArguments) \
+            or isinstance(error, ArgumentParsingError) \
+            or isinstance(error, BadArgument):
             return
 
         await ctx.send("Oops! I encountered a problem. Please contact an "
