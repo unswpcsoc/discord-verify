@@ -60,9 +60,6 @@ def main():
             kwargs: Kwargs supplied to event call.
         """
         err = sys.exc_info()[1]
-        if hasattr(err, "notify") and callable(err.notify):
-            await err.notify()
-            return
         LOG.error(f"Ignoring exception in {event}\n{traceback.format_exc()}")
     
     @BOT.event
@@ -89,11 +86,20 @@ def main():
             or isinstance(error, BadArgument):
             return
 
+        if hasattr(error, "original"):
+            err = error.original
+            if hasattr(err, "notify") and callable(err.notify):
+                await err.notify()
+                return
+            raise error.original
+        
+        if hasattr(err, "notify") and callable(err.notify):
+            await err.notify()
+            return
+
         await ctx.send("Oops! I encountered a problem. Please contact an "
             "admin.")
-
-        if hasattr(error, "original"):
-            raise error.original
+        
         raise error
 
     BOT.load_extension("iam.core")
