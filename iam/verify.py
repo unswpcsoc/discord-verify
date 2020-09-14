@@ -134,6 +134,7 @@ def is_verifying_user(cog, ctx, *func_args, **func_kwargs):
         return False, "You are not currently being verified."
     elif member_data[MemberKey.ID_VER]:
         return False, "You are already verified."
+    return True, None
 
 @pre(log_invoke(LOG, level=DEBUG))
 @post(log_success(LOG))
