@@ -705,7 +705,7 @@ async def proc_verify_manual(db, ver_role, channel, exec, member, name, arg):
         await channel.send("That is neither a valid zID nor "
             "a valid email.")
         return
-    await db.set_member_data(member.id, member_data)
+    db.set_member_data(member.id, member_data)
     await proc_grant_rank(ver_role, channel, member)
 
 @pre(log_invoke(LOG))
