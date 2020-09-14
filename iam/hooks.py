@@ -26,8 +26,10 @@ SOFTWARE.
 from logging import DEBUG, INFO
 from functools import wraps
 from inspect import iscoroutinefunction
+from discord import Member
 from discord.ext.commands import Context
 
+from iam.db import MemberKey
 from iam.log import log_func
 from iam.config import (
     PREFIX, SERVER_ID, VER_ROLE, VER_CHANNEL, ADMIN_CHANNEL, ADMIN_ROLES
@@ -251,11 +253,13 @@ def was_verified_user(cog, obj, *func_args, **func_kwargs):
         1. Boolean result of check.
         2. Error message to supply, if check failed.
     """
-    member = get_member(cog.bot, obj.author)
+    if not isinstance(obj, Member):
+        obj = obj.author
+    member = get_member(cog.bot, obj)
     if member is not None and VER_ROLE in get_role_ids(member):
         return
-    member_info = cog.db.get_member_data(obj.author.id)
-    if member_info == None or not member_info["verified"]:
+    member_data = cog.db.get_member_data(obj.id)
+    if member_data is None or not member_data[MemberKey.ID_VER]:
         return False, "You must be verified to do that."
     return True, None
 
@@ -301,8 +305,8 @@ def never_verified_user(cog, obj, *func_args, **func_kwargs):
     """
     member = get_member(cog.bot, obj.author)
     if member is None or VER_ROLE not in get_role_ids(member):
-        member_info = cog.db.get_member_data(obj.author.id)
-        if member_info == None or not member_info["verified"]:
+        member_data = cog.db.get_member_data(obj.author.id)
+        if member_data is None or not member_data[MemberKey.ID_VER]:
             return True, None
     return False, "You are already verified."
 
@@ -423,7 +427,9 @@ def is_human(cog, obj, *func_args, **func_kwargs):
         1. Boolean result of check.
         2. Error message to supply, if check failed.
     """
-    if obj.author.bot:
+    if not isinstance(obj, Member):
+        obj = obj.author
+    if obj.bot:
         return False, "You are not human."
     return True, None
 

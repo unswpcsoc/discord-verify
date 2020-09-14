@@ -977,8 +977,8 @@ class Verify(Cog, name=COG_NAME):
     @Cog.listener()
     @pre(check(is_human, level=None))
     @pre(check(was_verified_user, level=None))
-    @pre(log_invoke("was verified"))
-    @post(log_success("was verified"))
+    @pre(log_invoke(LOG, "was verified"))
+    @post(log_success(LOG, "was verified"))
     async def on_member_join(self, member):
         """Handle member joining that was previously verified.
 

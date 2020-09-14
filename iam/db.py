@@ -33,7 +33,6 @@ from discord.ext.commands import Cog
 
 from iam.config import CONFIG_DIR, MAX_VER_EMAILS
 from iam.log import new_logger
-from iam.hooks import pre, post, log_invoke, log_success
 
 LOG = new_logger(__name__)
 """Logger for this module."""
@@ -146,8 +145,6 @@ class Database(Cog):
         self.db = firestore_connect(certificate_file)
         self.logger = logger
 
-    @pre(log_invoke(LOG, level=DEBUG))
-    @post(log_success(LOG))
     def get_member_data(self, id):
         """Retrieve entry for member in database.
 
@@ -165,8 +162,6 @@ class Database(Cog):
             raise MemberNotFound(id, "get_member_data")
         return data
 
-    @pre(log_invoke(LOG, level=DEBUG))
-    @post(log_success(LOG))
     def get_unverified_members_data(self):
         """Retrieve entries for all unverified members in database.
 
@@ -183,8 +178,6 @@ class Database(Cog):
             unverified[member_id] = member_data
         return unverified
 
-    @pre(log_invoke(LOG, level=DEBUG))
-    @post(log_success(LOG))
     def set_member_data(self, id, info):
         """Write entry for member to database.
         
@@ -196,8 +189,6 @@ class Database(Cog):
         """
         self._get_member_doc(id).set(info)
 
-    @pre(log_invoke(LOG, level=DEBUG))
-    @post(log_success(LOG))
     def update_member_data(self, id, patch, must_exist=True):
         """Update entry for member in database.
         
@@ -223,8 +214,6 @@ class Database(Cog):
                 "they do not exist")
             raise MemberNotFound(id, "update_member_data")
 
-    @pre(log_invoke(LOG, level=DEBUG))
-    @post(log_success(LOG))
     def delete_member_data(self, id, must_exist=True):
         """Delete entry for member in database.
 
@@ -246,8 +235,6 @@ class Database(Cog):
             raise MemberNotFound(id, "delete_member_data")
         doc.delete()
 
-    @pre(log_invoke(LOG, level=DEBUG))
-    @post(log_success(LOG))
     def get_secret(self, id):
         """Retrieve entry for secret from database.
 
