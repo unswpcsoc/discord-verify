@@ -33,7 +33,7 @@ from iam.log import new_logger
 from iam.config import PREFIX
 from iam.hooks import pre, post, log_invoke, log_success
 
-LOG = None
+LOG = new_logger(__name__)
 """Logger for this module."""
 
 COG_NAME = "Core"
@@ -45,8 +45,6 @@ def setup(bot):
     Args:
         bot: Bot object to add cog to.
     """
-    global LOG
-    LOG = new_logger(__name__)
     LOG.debug(f"Setting up {__name__} extension...")
     cog = Core(bot, LOG)
     LOG.debug(f"Initialised {COG_NAME} cog")
