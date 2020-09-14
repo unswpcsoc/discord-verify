@@ -1292,19 +1292,147 @@ async def test_proc_resend_id_not_found():
         db.set_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_proc_verify_manual_standard():
+async def test_proc_verify_manual_unsw_standard():
     """Create new user entry in database and verify user."""
-    pass
+    for full_name in VALID_NAMES:
+        for zid in VALID_ZIDS:
+            # Setup
+            db = MagicMock()
+            member = new_mock_user(0)
+            exec = new_mock_user(1)
+            channel = new_mock_channel(2)
+            ver_role = AsyncMock()
+            before_time = time()
+
+            # Call
+            with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
+                await proc_verify_manual(db, ver_role, channel, exec, member,
+                    full_name, zid)
+
+            # Ensure user entry in database created accordingly.
+            member_data = make_def_member_data()
+            member_data[MemberKey.NAME] = full_name
+            member_data[MemberKey.ZID] = zid
+            member_data[MemberKey.EMAIL_VER] = True
+            member_data[MemberKey.ID_VER] = True
+            member_data[MemberKey.VER_EXEC] = exec.id
+            member_data[MemberKey.EMAIL] = f"{zid}@student.unsw.edu.au"
+            db.set_member_data.assert_called_once()
+            call_args = db.set_member_data.call_args.args
+            assert call_args[0] == member.id
+            assert call_args[1][MemberKey.VER_TIME] >= before_time and \
+                call_args[1][MemberKey.VER_TIME] < time()
+            assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == \
+                filter_dict(member_data, [MemberKey.VER_TIME])
+
+            # Ensure user granted rank.
+            mock_proc_grant_rank.assert_awaited_once_with(ver_role, channel,
+                member)
+
+            # Ensure no side effects occurred.
+            member.send.assert_not_awaited()
+            member.add_roles.assert_not_called()
+            db.update_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_proc_verify_manual_invalid_zid():
+async def test_proc_verify_manual_unsw_invalid_zid():
     """Send error if invalid zID entered."""
-    pass
+    for full_name in VALID_NAMES:
+        for zid in INVALID_ZIDS:
+            # Setup
+            db = MagicMock()
+            member = new_mock_user(0)
+            exec = new_mock_user(1)
+            channel = new_mock_channel(2)
+            ver_role = AsyncMock()
+            before_time = time()
+
+            # Call
+            with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
+                await proc_verify_manual(db, ver_role, channel, exec, member,
+                    full_name, zid)
+
+            # Ensure error sent in channel.
+            channel.send.assert_awaited_once_with("That is neither a valid "
+                "zID nor a valid email.")
+
+            # Ensure no side effects occurred.
+            mock_proc_grant_rank.assert_not_awaited()
+            member.send.assert_not_awaited()
+            member.add_roles.assert_not_called()
+            db.set_member_data.assert_not_called()
+            db.update_member_data.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_proc_verify_manual_invalid_email():
+async def test_proc_verify_manual_non_unsw_standard():
+    """Create new user entry in database and verify user."""
+    for full_name in VALID_NAMES:
+        for email in VALID_EMAILS:
+            # Setup
+            db = MagicMock()
+            member = new_mock_user(0)
+            exec = new_mock_user(1)
+            channel = new_mock_channel(2)
+            ver_role = AsyncMock()
+            before_time = time()
+
+            # Call
+            with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
+                await proc_verify_manual(db, ver_role, channel, exec, member,
+                    full_name, email)
+
+            # Ensure user entry in database created accordingly.
+            member_data = make_def_member_data()
+            member_data[MemberKey.NAME] = full_name
+            member_data[MemberKey.EMAIL] = email
+            member_data[MemberKey.EMAIL_VER] = True
+            member_data[MemberKey.ID_VER] = True
+            member_data[MemberKey.VER_EXEC] = exec.id
+            db.set_member_data.assert_called_once()
+            call_args = db.set_member_data.call_args.args
+            assert call_args[0] == member.id
+            assert call_args[1][MemberKey.VER_TIME] >= before_time and \
+                call_args[1][MemberKey.VER_TIME] < time()
+            assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == \
+                filter_dict(member_data, [MemberKey.VER_TIME])
+
+            # Ensure user granted rank.
+            mock_proc_grant_rank.assert_awaited_once_with(ver_role, channel,
+                member)
+
+            # Ensure no side effects occurred.
+            member.send.assert_not_awaited()
+            member.add_roles.assert_not_called()
+            db.update_member_data.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_proc_verify_manual_non_unsw_invalid_email():
     """Send error if invalid email entered."""
-    pass
+    for full_name in VALID_NAMES:
+        for email in INVALID_EMAILS:
+            # Setup
+            db = MagicMock()
+            member = new_mock_user(0)
+            exec = new_mock_user(1)
+            channel = new_mock_channel(2)
+            ver_role = AsyncMock()
+            before_time = time()
+
+            # Call
+            with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
+                await proc_verify_manual(db, ver_role, channel, exec, member,
+                    full_name, email)
+
+            # Ensure error sent in channel.
+            channel.send.assert_awaited_once_with("That is neither a valid "
+                "zID nor a valid email.")
+
+            # Ensure no side effects occurred.
+            mock_proc_grant_rank.assert_not_awaited()
+            member.send.assert_not_awaited()
+            member.add_roles.assert_not_called()
+            db.set_member_data.assert_not_called()
+            db.update_member_data.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_proc_grant_rank_standard():
