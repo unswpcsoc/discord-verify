@@ -34,7 +34,7 @@ CONFIG_FILE = f"{CONFIG_DIR}/config.yml"
 
 try:
     with open(CONFIG_FILE, "r", encoding="utf-8") as fs:
-        config = yaml.load(fs)
+        config = yaml.load(fs, Loader=yaml.SafeLoader)
     BOT_TOKEN = config["bot-token"]
     PREFIX = config["command-prefix"]
     SERVER_ID = config["server-id"]
