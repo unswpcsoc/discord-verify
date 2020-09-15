@@ -34,11 +34,13 @@ CONFIG_FILE = f"{CONFIG_DIR}/config.yml"
 
 try:
     with open(CONFIG_FILE, "r", encoding="utf-8") as fs:
-        config = yaml.load(fs)
+        config = yaml.load(fs, Loader=yaml.SafeLoader)
+    BOT_TOKEN = config["bot-token"]
     PREFIX = config["command-prefix"]
     SERVER_ID = config["server-id"]
     VER_ROLE = config["verified-role"]
-    ALLOW_CHANNELS = config["allowed-channels"]
+    VER_CHANNEL = config["verification-channel"]
+    MAX_VER_EMAILS = config["max-verification-emails"]
     ADMIN_CHANNEL = config["admin-channel"]
     ADMIN_ROLES = config["admin-roles"]
     EMAIL = config["email-address"]

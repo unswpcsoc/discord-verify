@@ -26,54 +26,124 @@ SOFTWARE.
 import firebase_admin
 from firebase_admin import credentials, firestore
 import google.cloud.exceptions
+from logging import DEBUG, INFO
+from time import time
 from secrets import token_bytes
-from discord.ext import commands
+from discord.ext.commands import Cog
+
+from iam.config import CONFIG_DIR, MAX_VER_EMAILS
+from iam.log import new_logger
+
+LOG = new_logger(__name__)
+"""Logger for this module."""
+
+COG_NAME = "Database"
+"""Name of this module's cog."""
+
+CERTIFICATE_FILE = f"{CONFIG_DIR}/firebase_credentials.json"
+"""Location of Firebase certificate file."""
+
+COL_MEMBERS = "members"
+"""Name of member collection in database."""
+
+COL_SECRETS = "secrets"
+"""Name of secrets collection in database"""
 
 def setup(bot):
-    """Add Database cog to bot.
+    """Add Database cog to bot and set up logging.
 
     Args:
         bot: Bot object to add cog to.
     """
-    bot.add_cog(Database())
+    LOG.debug(f"Setting up {__name__} extension...")
+    cog = Database(CERTIFICATE_FILE, LOG)
+    LOG.debug(f"Initialised {COG_NAME} cog")
+    bot.add_cog(cog)
+    LOG.debug(f"Added {COG_NAME} cog to bot")
+
+def teardown(bot):
+    """Remove Database cog from this bot and remove logging.
+
+    Args:
+        bot: Bot object to remove cog from.
+    """
+    LOG.debug(f"Tearing down {__name__} extension...")
+    bot.remove_cog(COG_NAME)
+    LOG.debug(f"Removed {COG_NAME} cog from bot")
+    for handler in LOG.handlers:
+        LOG.removeHandler(handler)
 
 class MemberNotFound(Exception):
-    """Member not found in database."""
-    pass
+    """Member not found in database.
+
+    Attributes:
+        member_id: Integer representing Discord ID of member queried.
+        context: String containing any additional context related to this
+                    exception being thrown.
+    """
+    def __init__(self, member_id, context):
+        """Init exception with given args.
+
+        Args:
+            member_id: Integer representing Discord ID of member queried.
+            context: String containing any additional context related to this
+                     exception being thrown.
+        """
+        self.member_id = member_id
+        self.context = context
+
+    def notify(self):
+        """Default handler for this exception.
+
+        Log an error message containing relevant context.
+        """
+        LOG.error(f"Member '{self.member_id}' could not be found in database! "
+            f"Context: '{self.context}'")
 
 class MemberKey():
     """Keys for member entries in database."""
-    STATE = "_state"
     NAME = "full_name"
     ZID = "zid"
     EMAIL = "email"
     EMAIL_VER = "email_verified"
     ID_MESSAGE = "id_message"
     ID_VER = "id_verified"
+    VER_EXEC = "verifying_exec"
+    VER_STATE = "_verify_state"
+    VER_TIME = "_verify_timestamp"
+    EMAIL_ATTEMPTS = "_email_verify_attempts"
+    MAX_EMAIL_ATTEMPTS = "_max_email_verify_attempts"
+
+def make_def_member_data():
+    return {
+        MemberKey.NAME: None,
+        MemberKey.ZID: None,
+        MemberKey.EMAIL: None,
+        MemberKey.EMAIL_VER: False,
+        MemberKey.ID_MESSAGE: None,
+        MemberKey.ID_VER: False,
+        MemberKey.VER_EXEC: None,
+        MemberKey.VER_STATE: None,
+        MemberKey.VER_TIME: time(),
+        MemberKey.EMAIL_ATTEMPTS: 0,
+        MemberKey.MAX_EMAIL_ATTEMPTS: MAX_VER_EMAILS
+    }
 
 class SecretID():
     """Names for secret entries in database."""
     VERIFY = "verify"
 
-class Database(commands.Cog):
+class Database(Cog):
     """Handle database functions.
     
     Attributes:
         db: Connected Firestore Client.
     """
-    CERTIFICATE_FILE = "config/firebase_credentials.json"
-    """Location of Firebase certificate file."""
-
-    COL_MEMBERS = "members"
-    """Name of member collection in the database."""
-
-    COL_SECRETS = "secrets"
-    """Name of secrets collection in the database"""
-
-    def __init__(self):
+    def __init__(self, certificate_file, logger):
         """Init cog and connect to Firestore."""
-        self.db = None
-        self._connect()
+        LOG.debug(f"Initialising {COG_NAME} cog...")
+        self.db = firestore_connect(certificate_file)
+        self.logger = logger
 
     def get_member_data(self, id):
         """Retrieve entry for member in database.
@@ -89,7 +159,7 @@ class Database(commands.Cog):
         """
         data = self._get_member_doc(id).get().to_dict()
         if data is None:
-            raise MemberNotFound
+            raise MemberNotFound(id, "get_member_data")
         return data
 
     def get_unverified_members_data(self):
@@ -119,7 +189,7 @@ class Database(commands.Cog):
         """
         self._get_member_doc(id).set(info)
 
-    def update_member_data(self, id, info, must_exist=True):
+    def update_member_data(self, id, patch, must_exist=True):
         """Update entry for member in database.
         
         Will only modify given keys and values. If key does not already exist,
@@ -129,7 +199,7 @@ class Database(commands.Cog):
 
         Args:
             id: Discord ID of member.
-            info: Dict of keys and values to write.
+            patch: Dict of keys and values to write.
             must_exist: Boolean for if member must exist in database. If False,
                         will create new entry if they do not.
 
@@ -138,9 +208,11 @@ class Database(commands.Cog):
                             must_exist == True.
         """
         try:
-            self._get_member_doc(id).update(info)
+            self._get_member_doc(id).update(patch)
         except google.cloud.exceptions.NotFound:
-            raise MemberNotFound
+            LOG.warning(f"Failed to update member '{id}' entry in database - "
+                "they do not exist")
+            raise MemberNotFound(id, "update_member_data")
 
     def delete_member_data(self, id, must_exist=True):
         """Delete entry for member in database.
@@ -158,7 +230,9 @@ class Database(commands.Cog):
         """
         doc = self._get_member_doc(id)
         if must_exist and doc.get().to_dict() is None:
-            raise MemberNotFound
+            LOG.warning(f"Failed to delete member '{id}' in database - "
+                "they do not exist")
+            raise MemberNotFound(id, "delete_member_data")
         doc.delete()
 
     def get_secret(self, id):
@@ -177,24 +251,13 @@ class Database(commands.Cog):
         
         if data is not None:
             secret = data["secret"]
-            print(f"Retrieved '{id}' secret from Firebase")
         else:
-            print(f"Generating new '{id}' secret...")
+            LOG.info(f"Generating new '{id}' secret...")
             secret = token_bytes(64)
             doc.set({"secret": secret})
-            print(f"Saved {id} secret in Firebase")
+            LOG.info(f"Saved new '{id}' secret in Firebase")
         
         return secret
-
-    def _connect(self):
-        """Connect to Firestore.
-        
-        Required for all other methods to function.
-        """
-        cred = credentials.Certificate(self.CERTIFICATE_FILE)
-        firebase_admin.initialize_app(cred)
-        self.db = firestore.client()
-        print("Logged in to Firebase")
     
     def _get_member_doc(self, id):
         """Retrieve member doc from database.
@@ -213,7 +276,7 @@ class Database(commands.Cog):
         Returns:
             Firestore collection of members.
         """
-        return self.db.collection(self.COL_MEMBERS)
+        return self.db.collection(COL_MEMBERS)
     
     def _get_secrets_col(self):
         """Get secrets collection.
@@ -221,4 +284,19 @@ class Database(commands.Cog):
         Returns:
             Firestore collection of secrets.
         """
-        return self.db.collection(self.COL_SECRETS)
+        return self.db.collection(COL_SECRETS)
+
+def firestore_connect(certificate_file):
+    """Connect to Firestore.
+    
+    Required for all other methods to function.
+
+    Returns:
+        Firestore client object.
+    """
+    LOG.debug("Logging in to Firebase...")
+    cred = credentials.Certificate(certificate_file)
+    firebase_admin.initialize_app(cred)
+    client = firestore.client()
+    LOG.info("Logged in to Firebase")
+    return client
