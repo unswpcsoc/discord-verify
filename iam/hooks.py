@@ -26,7 +26,7 @@ SOFTWARE.
 from logging import DEBUG, INFO
 from functools import wraps
 from inspect import iscoroutinefunction
-from discord import Member
+from discord import User
 from discord.ext.commands import Context
 
 from iam.db import MemberKey, MemberNotFound
@@ -253,18 +253,18 @@ def was_verified_user(cog, obj, *func_args, **func_kwargs):
         1. Boolean result of check.
         2. Error message to supply, if check failed.
     """
-    if not isinstance(obj, Member):
+    if not isinstance(obj, User):
         obj = obj.author
     member = get_member(cog.bot, obj)
     if member is not None and VER_ROLE in get_role_ids(member):
         return True, None
     try:
         member_data = cog.db.get_member_data(obj.id)
+        if member_data[MemberKey.ID_VER]:
+            return True, None
     except MemberNotFound:
-        return False, "You must be verified to do that."
-    if not member_data[MemberKey.ID_VER]:
-        return False, "You must be verified to do that."
-    return True, None
+        pass
+    return False, "You must be verified to do that."
 
 def is_unverified_user(cog, obj, *func_args, **func_kwargs):
     """Checks that user that invoked function is unverified.
@@ -288,7 +288,7 @@ def is_unverified_user(cog, obj, *func_args, **func_kwargs):
         return False, "You are already verified."
     return True, None
 
-def is_strictly_verified_user(cog, obj, *func_args, **func_kwargs):
+def is_strictly_verified_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function is verified in database.
 
     Associated cog must have bot and db as instance variables.
@@ -296,27 +296,22 @@ def is_strictly_verified_user(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to function call.
-        func_kwargs: Kwargs supplied to function call.
 
     Returns:
         1. Boolean result of check.
         2. Error message to supply, if check failed.
     """
-    if not isinstance(obj, Member):
-        obj = obj.author
-    err_msg = "You must be verified to do that."
-    member = get_member(cog.bot, obj)
-    if member is not None and VER_ROLE in get_role_ids(member):
-        err_msg = "Could not find your details in the database. Please " \
-            "contact an admin."
+    member = obj
+    if not isinstance(obj, User):
+        member = obj.author
     try:
-        member_data = cog.db.get_member_data(obj.id)
+        member_data = cog.db.get_member_data(member.id)
+        if member_data[MemberKey.ID_VER]:
+            return True, None
     except MemberNotFound:
-        return False, err_msg
-    if not member_data[MemberKey.ID_VER]:
-        return False, err_msg
-    return True, None
+        pass
+    return False, "Could not find your details in the database. Please " \
+        "contact an admin."
 
 def never_verified_user(cog, obj, *func_args, **func_kwargs):
     """Checks that user that invoked function was verified in past.
