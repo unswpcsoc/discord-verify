@@ -1,3 +1,5 @@
+"""Handle newsletter subscriptions for users."""
+
 from requests import get
 from discord.ext.commands import Cog, command
 from logging import DEBUG, INFO
@@ -59,7 +61,18 @@ async def proc_subscribe(db, user, channel):
     await channel.send("Successfully subscribed to the newsletter!")
 
 class Newsletter(Cog, name=COG_NAME):
+    """Handle newsletter subscriptions for users.
+
+    Attributes:
+        bot: Bot object that registered this cog.
+        db: Database cog associated with bot.
+    """
     def __init__(self, bot, logger):
+        """Init cog with given bot.
+        
+        Args:
+            bot: Bot object that registered this cog.
+        """
         self.bot = bot
         self.logger = logger
 
