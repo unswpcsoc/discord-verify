@@ -308,8 +308,8 @@ def is_strictly_verified_user(cog, obj, *func_args, **func_kwargs):
     err_msg = "You must be verified to do that."
     member = get_member(cog.bot, obj)
     if member is not None and VER_ROLE in get_role_ids(member):
-        err_msg = "Could not find your details in the database. Please "
-        "contact an admin."
+        err_msg = "Could not find your details in the database. Please " \
+            "contact an admin."
     try:
         member_data = cog.db.get_member_data(obj.id)
     except MemberNotFound:
