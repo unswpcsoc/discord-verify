@@ -749,7 +749,7 @@ async def proc_grant_rank(ver_role, admin_channel, member, silent=False):
     if not silent:
         await member.send("You are now verified. Welcome to the server!"
             "If you are interested in subscribing to our newsletter, try the "
-            f"{PREFIX}newsletter command.")
+            f"`{PREFIX}newsletter` command.")
         await admin_channel.send(f"{member.mention} is now verified.")
 
 class Verify(Cog, name=COG_NAME):
