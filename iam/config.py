@@ -47,6 +47,7 @@ try:
     AWS_REGION = config["aws-region"]
     AWS_ACCESS_KEY_ID = config["aws-access-key-id"]
     AWS_SECRET_ACCESS_KEY = config["aws-secret-access-key"]
+    NEWSLETTER_SUB_URL = config["newsletter-sub-url"]
 except IOError as err:
     raise ConfigFileNotFound("Can't find config file! Create a config.yml "
         "file in the config directory with similar structure to default.yml.")
