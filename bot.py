@@ -102,8 +102,8 @@ def main():
         
         raise error
 
-    BOT.load_extension("iam.core")
     BOT.load_extension("iam.db")
+    BOT.load_extension("iam.core")
     BOT.load_extension("iam.mail")
     BOT.load_extension("iam.verify")
     BOT.load_extension("iam.sign")
