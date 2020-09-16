@@ -27,7 +27,7 @@ def setup(bot):
         bot: Bot object to add cog to.
     """
     LOG.debug(f"Setting up {__name__} extension...")
-    cog = Newsletter(bot, MAILCHIMP_API_KEY, MAILCHIMP_LIST_ID)
+    cog = Newsletter(bot, MAILCHIMP_API_KEY, MAILCHIMP_LIST_ID, LOG)
     LOG.debug(f"Initialised {COG_NAME} cog")
     bot.add_cog(cog)
     LOG.debug(f"Added {COG_NAME} cog to bot")
@@ -146,20 +146,23 @@ class Newsletter(Cog, name=COG_NAME):
     Attributes:
         bot: Bot object that registered this cog.
         db: Database cog associated with bot.
+        logger: Logger for this cog.
         client: Mailchimp Client object.
         list_id: String representing Mailchimp list ID.
     """
-    def __init__(self, bot, api_key, list_id):
+    def __init__(self, bot, api_key, list_id, logger):
         """Init cog and connect to Mailchimp.
 
         Args:
             bot: Bot object that registered this cog.
             api_key: String representing Mailchimp API key.
             list_id: String representing Mailchimp list ID.
+            logger: Logger for this cog.
         """
         self.bot = bot
         self.client = client = Client({"api_key": api_key})
         self.list_id = list_id
+        self.logger = logger
 
     @property
     def db(self):
