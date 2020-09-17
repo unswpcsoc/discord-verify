@@ -13,6 +13,7 @@ from iam.hooks import (
     pre, post, check, log_attempt, log_invoke, log_success,
     verified_in_db
 )
+from iam.core import show_help_single
 
 LOG = new_logger(__name__)
 """Logger for this module."""
@@ -191,7 +192,7 @@ class Newsletter(Cog, name=COG_NAME):
         Args:
             ctx: Context object associated with command invocation.
         """
-        pass
+        await show_help_single(self.bot, ctx, ctx.command.qualified_name)
 
     @grp_newsletter.command(
         name="sub",
