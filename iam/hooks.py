@@ -36,7 +36,7 @@ class CheckFailed(Exception):
         """
         await self.obj.send(self.msg)
 
-class CheckResult():
+class CheckResult:
     """Store boolean, message result of a check.
 
     Attributes:
