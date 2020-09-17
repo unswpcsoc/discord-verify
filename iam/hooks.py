@@ -9,7 +9,7 @@ from discord.ext.commands import Context
 from iam.db import MemberKey, MemberNotFound
 from iam.log import log_func
 from iam.config import (
-    PREFIX, SERVER_ID, VER_ROLE, VER_CHANNEL, ADMIN_CHANNEL, ADMIN_ROLES
+    PREFIX, SERVER_ID, VERIF_ROLE, VER_CHANNEL, ADMIN_CHANNEL, ADMIN_ROLES
 )
 
 class CheckFailed(Exception):
@@ -204,7 +204,7 @@ def is_verified_user(cog, obj, *args, **kwargs):
         2. Error message to supply, if check failed.
     """
     member = get_member(cog.bot, obj.author)
-    if member is None or VER_ROLE not in get_role_ids(member):
+    if member is None or VERIF_ROLE not in get_role_ids(member):
         return False, "You must be verified to do that."
     return True, None
 
@@ -227,7 +227,7 @@ def was_verified_user(cog, obj, *args, **kwargs):
     if not isinstance(obj, User):
         obj = obj.author
     member = get_member(cog.bot, obj)
-    if member is not None and VER_ROLE in get_role_ids(member):
+    if member is not None and VERIF_ROLE in get_role_ids(member):
         return True, None
     try:
         member_data = cog.db.get_member_data(obj.id)
@@ -253,7 +253,7 @@ def is_unverified_user(cog, obj, *args, **kwargs):
         2. Error message to supply, if check failed.
     """
     member = get_member(cog.bot, obj.author)
-    if member is not None and VER_ROLE in get_role_ids(member):
+    if member is not None and VERIF_ROLE in get_role_ids(member):
         return False, "You are already verified."
     return True, None
 
@@ -299,7 +299,7 @@ def never_verified_user(cog, obj, *args, **kwargs):
         2. Error message to supply, if check failed.
     """
     member = get_member(cog.bot, obj.author)
-    if member is None or VER_ROLE not in get_role_ids(member):
+    if member is None or VERIF_ROLE not in get_role_ids(member):
         try:
             member_data = cog.db.get_member_data(obj.author.id)
         except MemberNotFound:

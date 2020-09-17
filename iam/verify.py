@@ -13,7 +13,7 @@ from iam.log import new_logger
 from iam.db import MemberKey, make_def_member_data, SecretID, MemberNotFound
 from iam.mail import MailError, is_valid_email
 from iam.config import (
-    PREFIX, SERVER_ID, VER_ROLE, ADMIN_CHANNEL, MAX_VER_EMAILS
+    PREFIX, SERVER_ID, VERIF_ROLE, ADMIN_CHANNEL, MAX_VER_EMAILS
 )
 from iam.hooks import (
     pre, post, check, log_attempt, log_invoke, log_success, is_verified_user,
@@ -785,7 +785,7 @@ class Verify(Cog, name=COG_NAME):
 
     @property
     def ver_role(self):
-        return self.guild.get_role(VER_ROLE)
+        return self.guild.get_role(VERIF_ROLE)
 
     @property
     def admin_channel(self):
