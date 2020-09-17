@@ -77,7 +77,7 @@ class MemberNotFound(Exception):
         LOG.error(f"Member '{self.member_id}' could not be found in database! "
             f"Context: '{self.context}'")
 
-class MemberKey():
+class MemberKey:
     """Keys for member entries in database."""
     NAME = "full_name"
     ZID = "zid"
@@ -106,7 +106,7 @@ def make_def_member_data():
         MemberKey.MAX_EMAIL_ATTEMPTS: MAX_VER_EMAILS
     }
 
-class SecretID():
+class SecretID:
     """Names for secret entries in database."""
     VERIFY = "verify"
 
