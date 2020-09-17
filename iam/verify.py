@@ -79,7 +79,7 @@ def _next_state(state):
         return wrapper
     return decorator
 
-def _awaiting_approval(db, ctx, member, *func_args, **func_kwargs):
+def _awaiting_approval(db, ctx, member, *args, **kwargs):
     """Raises exception if member is not awaiting approval.
     
     Can only be used within the Verify cog.
@@ -113,7 +113,7 @@ def is_valid_zid(zid):
     """
     return search(ZID_REGEX, zid) is not None
 
-def is_verifying_user(cog, ctx, *func_args, **func_kwargs):
+def is_verifying_user(cog, ctx, *args, **kwargs):
     """Checks that user that invoked function is undergoing verification.
 
     Associated cog must have db as an instance variable.

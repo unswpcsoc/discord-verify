@@ -173,8 +173,6 @@ def check(check_func, level=DEBUG, notify=False):
             func: Function being invoked.
             cog: Cog associated with function invocation.
             obj: Object associated with function invocation.
-            args: Args supplied to function call.
-            kwargs: Kwargs supplied to function call.
 
         Returns:
             Boolean result of check.
@@ -190,7 +188,7 @@ def check(check_func, level=DEBUG, notify=False):
         return res
     return action
 
-def is_verified_user(cog, obj, *func_args, **func_kwargs):
+def is_verified_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function is verified.
 
     Verified role defined in config.
@@ -200,8 +198,6 @@ def is_verified_user(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to function call.
-        func_kwargs: Kwargs supplied to function call.
 
     Returns:
         1. Boolean result of check.
@@ -212,7 +208,7 @@ def is_verified_user(cog, obj, *func_args, **func_kwargs):
         return False, "You must be verified to do that."
     return True, None
 
-def was_verified_user(cog, obj, *func_args, **func_kwargs):
+def was_verified_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function was verified in past.
     
     Verified in past defined as either verified in the database or currently
@@ -223,8 +219,6 @@ def was_verified_user(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to function call.
-        func_kwargs: Kwargs supplied to function call.
 
     Returns:
         1. Boolean result of check.
@@ -243,7 +237,7 @@ def was_verified_user(cog, obj, *func_args, **func_kwargs):
         pass
     return False, "You must be verified to do that."
 
-def is_unverified_user(cog, obj, *func_args, **func_kwargs):
+def is_unverified_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function is unverified.
 
     Verified role defined in config.
@@ -253,8 +247,6 @@ def is_unverified_user(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to function call.
-        func_kwargs: Kwargs supplied to function call.
 
     Returns:
         1. Boolean result of check.
@@ -290,7 +282,7 @@ def is_strictly_verified_user(cog, obj, *args, **kwargs):
     return False, "Could not find your details in the database. Please " \
         "contact an admin."
 
-def never_verified_user(cog, obj, *func_args, **func_kwargs):
+def never_verified_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function was verified in past.
     
     Verified in past defined as either verified in the database or currently
@@ -301,8 +293,6 @@ def never_verified_user(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to function call.
-        func_kwargs: Kwargs supplied to function call.
 
     Returns:
         1. Boolean result of check.
@@ -318,7 +308,7 @@ def never_verified_user(cog, obj, *func_args, **func_kwargs):
             return True, None
     return False, "You are already verified."
 
-def is_admin_user(cog, obj, *func_args, **func_kwargs):
+def is_admin_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function has at least one admin role.
 
     Admin roles defined in config.
@@ -328,8 +318,6 @@ def is_admin_user(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to function call.
-        func_kwargs: Kwargs supplied to function call.
 
     Returns:
         1. Boolean result of check.
@@ -340,7 +328,7 @@ def is_admin_user(cog, obj, *func_args, **func_kwargs):
         return False, "You are not authorised to do that."
     return True, None
 
-def is_guild_member(cog, obj, *func_args, **func_kwargs):
+def is_guild_member(cog, obj, *args, **kwargs):
     """Checks that user that invoked function is member of guild.
     
     Guild defined in config.
@@ -350,8 +338,6 @@ def is_guild_member(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to function call.
-        func_kwargs: Kwargs supplied to function call.
 
     Returns:
         1. Boolean result of check.
@@ -361,7 +347,7 @@ def is_guild_member(cog, obj, *func_args, **func_kwargs):
         return False, "You must be a member of the server to do that."
     return True, None
 
-def in_ver_channel(cog, obj, *func_args, **func_kwargs):
+def in_ver_channel(cog, obj, *args, **kwargs):
     """Checks that function was invoked in verification channel.
     
     Verification channel defined in config.
@@ -369,8 +355,6 @@ def in_ver_channel(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to function call.
-        func_kwargs: Kwargs supplied to function call.
 
     Returns:
         1. Boolean result of check.
@@ -382,7 +366,7 @@ def in_ver_channel(cog, obj, *func_args, **func_kwargs):
             f"{ver_channel.mention}.")
     return True, None
 
-def in_admin_channel(cog, obj, *func_args, **func_kwargs):
+def in_admin_channel(cog, obj, *args, **kwargs):
     """Checks that function was invoked in admin channel.
     
     Admin channel defined in config.
@@ -390,8 +374,6 @@ def in_admin_channel(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to function call.
-        func_kwargs: Kwargs supplied to function call.
 
     Returns:
         1. Boolean result of check.
@@ -401,7 +383,7 @@ def in_admin_channel(cog, obj, *func_args, **func_kwargs):
         return False, "You must be in the admin channel to do that."
     return True, None
 
-def in_dm_channel(cog, obj, *func_args, **func_kwargs):
+def in_dm_channel(cog, obj, *args, **kwargs):
     """Checks that function was invoked in DM channel.
     
     Admin channel defined in config.
@@ -409,8 +391,6 @@ def in_dm_channel(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to function call.
-        func_kwargs: Kwargs supplied to function call.
 
     Returns:
         1. Boolean result of check.
@@ -420,7 +400,7 @@ def in_dm_channel(cog, obj, *func_args, **func_kwargs):
         return False, "You must be in a DM channel to do that."
     return True, None
 
-def is_human(cog, obj, *func_args, **func_kwargs):
+def is_human(cog, obj, *args, **kwargs):
     """Checks that function was invoked by human user.
     
     Prevents bot from handling events triggered by bots, including itself.
@@ -428,8 +408,6 @@ def is_human(cog, obj, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to function call.
-        func_kwargs: Kwargs supplied to function call.
 
     Returns:
         1. Boolean result of check.
@@ -441,7 +419,7 @@ def is_human(cog, obj, *func_args, **func_kwargs):
         return False, "You are not human."
     return True, None
 
-def is_not_command(cog, message, *func_args, **func_kwargs):
+def is_not_command(cog, message, *args, **kwargs):
     """Checks that message that invoked function was not a command.
 
     Prevents bot from handling on_message events generated by commands.
@@ -449,8 +427,6 @@ def is_not_command(cog, message, *func_args, **func_kwargs):
     Args:
         cog: Cog associated with function invocation.
         obj: Object associated with function invocation.
-        func_args: Args supplied to function call.
-        func_kwargs: Kwargs supplied to function call.
 
     Returns:
         1. Boolean result of check.
