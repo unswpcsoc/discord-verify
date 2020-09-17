@@ -113,7 +113,7 @@ async def proc_subscribe(client, list_id, db, user, channel):
     except ApiClientError as e:
         raise SubscriptionError(channel, user, "Oops! Something went wrong "
             "while attempting to subscribe you to the newsletter. Please "
-            "contact an admin.", e)
+            "contact an admin.", e.text)
 
     await channel.send("Successfully subscribed to the newsletter!")
 
@@ -130,13 +130,23 @@ async def proc_unsubscribe(client, list_id, db, user, channel):
         channel: Channel to send confirmation message to.
     """
     member_data = db.get_member_data(user.id)
+    email = member_data[MemberKey.EMAIL]
+    zid = member_data[MemberKey.ZID]
     try:
-        res = client.lists.delete_list_member_permanent(list_id,
-            subscriber_hash(member_data[MemberKey.EMAIL]))
+        res = client.lists.set_list_member(list_id, subscriber_hash(email), {
+            "email_address": email,
+            "status_if_new": "unsubscribed",
+            "status": "unsubscribed",
+            "merge_fields": {
+                "FNAME": member_data[MemberKey.NAME],
+                "MMERGE2": "No" if zid is None else "Yes",
+                "MMERGE3": "" if zid is None else zid
+            }
+        })
     except ApiClientError as e:
         raise SubscriptionError(channel, user, "Oops! Something went wrong "
             "while attempting to unsubscribe you from the newsletter. Please "
-            "contact an admin.", e)
+            "contact an admin.", e.text)
 
     await channel.send("Successfully unsubscribed from the newsletter!")
 
