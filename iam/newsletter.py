@@ -185,6 +185,8 @@ class Newsletter(Cog, name=COG_NAME):
         invoke_without_command=True,
         ignore_extra=False
     )
+    @pre(log_invoke(LOG))
+    @post(log_success(LOG))
     async def grp_newsletter(self, ctx):
         """Register newsletter command group.
         
