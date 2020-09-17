@@ -40,6 +40,36 @@ def teardown(bot):
     for handler in LOG.handlers:
         LOG.removeHandler(handler)
 
+async def show_help_all(bot, target):
+    """Send help text for all commands to target.
+
+    Args:
+        bot: Bot to generate help text for.
+        target: Object to send message to.
+    """
+    out = ["**All commands:**"]
+    for cmd in bot.commands:
+        if cmd.hidden:
+            continue
+        out.append(make_help_text(cmd))
+    await target.send("\n".join(out))
+
+async def show_help_single(bot, target, query):
+    """Send help text for queried command to target.
+
+    If no such command exists or command is hidden, send error message.
+
+    Args:
+        bot: Bot to generate help text for.
+        target: Object to send message to.
+        query: String representing command to search for.
+    """
+    cmd = bot.get_command(query)
+    if cmd == None or cmd.hidden:
+        await target.send("No such command exists!")
+        return
+    await target.send(f"Usage: {make_help_text(cmd)}")
+
 class Core(Cog, name=COG_NAME):
     """Handle core functions of the bot.
 
@@ -78,7 +108,7 @@ class Core(Cog, name=COG_NAME):
             or isinstance(error, ArgumentParsingError) \
             or isinstance(error, BadArgument)) \
             and ctx.channel.id == ADMIN_CHANNEL:
-            await self.show_help_single(ctx, ctx.command.qualified_name)
+            await show_help_single(self.bot, ctx, ctx.command.qualified_name)
 
     @command(
         name="help",
@@ -103,37 +133,9 @@ class Core(Cog, name=COG_NAME):
                    Optional.
         """
         if len(query) == 0:
-            await self.show_help_all(ctx)
+            await show_help_all(self.bot, ctx)
         else:
-            await self.show_help_single(ctx, " ".join(query))
-
-    async def show_help_all(self, target):
-        """Send help text for all commands to target.
-
-        Args:
-            target: Object to send message to.
-        """
-        out = ["**All commands:**"]
-        for cmd in self.bot.commands:
-            if cmd.hidden:
-                continue
-            out.append(make_help_text(cmd))
-        await target.send("\n".join(out))
-
-    async def show_help_single(self, target, query):
-        """Send help text for queried command to target.
-
-        If no such command exists or command is hidden, send error message.
-
-        Args:
-            target: Object to send message to.
-            query: String representing command to search for.
-        """
-        cmd = self.bot.get_command(query)
-        if cmd == None or cmd.hidden:
-            await target.send("No such command exists!")
-            return
-        await target.send(f"Usage: {make_help_text(cmd)}")
+            await show_help_single(self.bot, ctx, " ".join(query))
 
 def make_help_text(cmd):
     """Generate help text for command.
