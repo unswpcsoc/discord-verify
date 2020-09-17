@@ -7,7 +7,7 @@ from re import search
 import hmac
 from discord.ext.commands import Cog, group, command
 from discord import Member, NotFound
-from logging import DEBUG, INFO
+from logging import DEBUG
 
 from iam.log import new_logger
 from iam.db import MemberKey, make_def_member_data, SecretID, MemberNotFound

@@ -4,7 +4,6 @@ from mailchimp_marketing import Client
 from mailchimp_marketing.api_client import ApiClientError
 from hashlib import md5
 from discord.ext.commands import Cog, group
-from logging import DEBUG, INFO
 
 from iam.db import MemberKey
 from iam.log import new_logger
