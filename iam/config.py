@@ -15,7 +15,7 @@ try:
     BOT_TOKEN = config["bot-token"]
     PREFIX = config["command-prefix"]
     SERVER_ID = config["server-id"]
-    VER_ROLE = config["verified-role"]
+    VERIF_ROLE = config["verified-role"]
     VER_CHANNEL = config["verification-channel"]
     MAX_VER_EMAILS = config["max-verification-emails"]
     ADMIN_CHANNEL = config["admin-channel"]

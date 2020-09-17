@@ -11,7 +11,7 @@ from iam.log import new_logger
 from iam.config import PREFIX, MAILCHIMP_API_KEY, MAILCHIMP_LIST_ID
 from iam.hooks import (
     pre, post, check, log_attempt, log_invoke, log_success,
-    is_strictly_verified_user
+    verified_in_db
 )
 
 LOG = new_logger(__name__)
@@ -189,7 +189,7 @@ class Newsletter(Cog, name=COG_NAME):
         usage=""
     )
     @pre(log_attempt(LOG))
-    @pre(check(is_strictly_verified_user, notify=True))
+    @pre(check(verified_in_db, notify=True))
     @pre(log_invoke(LOG))
     @post(log_success(LOG))
     async def cmd_newsletter_sub(self, ctx):
@@ -209,7 +209,7 @@ class Newsletter(Cog, name=COG_NAME):
         usage=""
     )
     @pre(log_attempt(LOG))
-    @pre(check(is_strictly_verified_user, notify=True))
+    @pre(check(verified_in_db, notify=True))
     @pre(log_invoke(LOG))
     @post(log_success(LOG))
     async def cmd_newsletter_unsub(self, ctx):

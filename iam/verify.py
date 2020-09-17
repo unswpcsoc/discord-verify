@@ -13,10 +13,10 @@ from iam.log import new_logger
 from iam.db import MemberKey, make_def_member_data, SecretID, MemberNotFound
 from iam.mail import MailError, is_valid_email
 from iam.config import (
-    PREFIX, SERVER_ID, VER_ROLE, ADMIN_CHANNEL, MAX_VER_EMAILS
+    PREFIX, SERVER_ID, VERIF_ROLE, ADMIN_CHANNEL, MAX_VER_EMAILS
 )
 from iam.hooks import (
-    pre, post, check, log_attempt, log_invoke, log_success, is_verified_user,
+    pre, post, check, log_attempt, log_invoke, log_success, has_verified_role,
     was_verified_user, is_unverified_user, never_verified_user, is_admin_user,
     is_guild_member, in_ver_channel, in_admin_channel, in_dm_channel, is_human,
     is_not_command
@@ -79,7 +79,7 @@ def _next_state(state):
         return wrapper
     return decorator
 
-def _awaiting_approval(db, ctx, member, *func_args, **func_kwargs):
+def _awaiting_approval(db, ctx, member, *args, **kwargs):
     """Raises exception if member is not awaiting approval.
     
     Can only be used within the Verify cog.
@@ -113,7 +113,7 @@ def is_valid_zid(zid):
     """
     return search(ZID_REGEX, zid) is not None
 
-def is_verifying_user(cog, ctx, *func_args, **func_kwargs):
+def is_verifying_user(cog, ctx, *args, **kwargs):
     """Checks that user that invoked function is undergoing verification.
 
     Associated cog must have db as an instance variable.
@@ -785,7 +785,7 @@ class Verify(Cog, name=COG_NAME):
 
     @property
     def ver_role(self):
-        return self.guild.get_role(VER_ROLE)
+        return self.guild.get_role(VERIF_ROLE)
 
     @property
     def admin_channel(self):

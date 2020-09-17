@@ -16,7 +16,7 @@ from iam.db import (
 )
 from iam.hooks import CheckFailed
 from iam.mail import MailError
-from iam.config import PREFIX, VER_ROLE
+from iam.config import PREFIX, VERIF_ROLE
 import discord
 
 VALID_NAMES = ["Sabine Lim", "Test User", "kek", "", "X Æ A-12"]
