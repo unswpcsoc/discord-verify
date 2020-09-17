@@ -113,7 +113,7 @@ async def proc_subscribe(client, list_id, db, user, channel):
     except ApiClientError as e:
         raise SubscriptionError(channel, user, "Oops! Something went wrong "
             "while attempting to subscribe you to the newsletter. Please "
-            "contact an admin.", e)
+            "contact an admin.", e.text)
 
     await channel.send("Successfully subscribed to the newsletter!")
 
@@ -136,7 +136,7 @@ async def proc_unsubscribe(client, list_id, db, user, channel):
     except ApiClientError as e:
         raise SubscriptionError(channel, user, "Oops! Something went wrong "
             "while attempting to unsubscribe you from the newsletter. Please "
-            "contact an admin.", e)
+            "contact an admin.", e.text)
 
     await channel.send("Successfully unsubscribed from the newsletter!")
 
