@@ -16,17 +16,15 @@ class CheckFailed(Exception):
     """Event pre-execution check failed.
 
     Attributes:
-        ctx: Context object associated with event invocation.
-        msg: String representing error message to send in invocation context.
+        obj: Object to send error to on notify.
+        msg: String representing error message to send on notify.
     """
     def __init__(self, obj, msg):
         """Init exception with given args.
 
         Args:
-            check: String representing name of failed check.
-            ctx: Context object associated with event invocation.
-            msg: String representing error message to send in invocation
-                 context.
+            obj: Context to send error to on notify.
+            msg: String representing error message to send on notify.
         """
         self.obj = obj
         self.msg = msg
@@ -37,6 +35,23 @@ class CheckFailed(Exception):
         Send msg to ctx if silent == False.
         """
         await self.obj.send(self.msg)
+
+class CheckResult():
+    """Store boolean, message result of a check.
+
+    Attributes:
+        status: Boolean representing result of check.
+        msg: String containing info message from check result.
+    """
+    def __init__(self, status, msg):
+        """Init with given args.
+        
+        Attributes:
+            status: Boolean representing result of check.
+            msg: String containing info message from check result.
+        """
+        self.status = status
+        self.msg = msg
 
 def make_coro(func):
     """Turns a function into a coroutine without modifying its behaviour.
@@ -177,15 +192,14 @@ def check(check_func, level=DEBUG, notify=False):
         Returns:
             Boolean result of check.
         """
-        res, err_msg = await make_coro(check_func) \
-            (cog, obj, *args, **kwargs)
-        if not res:
+        res = await make_coro(check_func)(cog, obj, *args, **kwargs)
+        if not res.status:
             if level is not None:
                 log_func(cog.logger, level, f"{func.__name__}: failed check " 
                     f"'{check_func.__name__}'", *(obj, *args), **kwargs)
             if notify:
-                raise CheckFailed(obj, err_msg)
-        return res
+                raise CheckFailed(obj, res.msg)
+        return res.status
     return action
 
 def is_verified_user(cog, obj, *args, **kwargs):
@@ -205,8 +219,8 @@ def is_verified_user(cog, obj, *args, **kwargs):
     """
     member = get_member(cog.bot, obj.author)
     if member is None or VERIF_ROLE not in get_role_ids(member):
-        return False, "You must be verified to do that."
-    return True, None
+        return CheckResult(False, "You must be verified to do that.")
+    return CheckResult(True, None)
 
 def was_verified_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function was verified in past.
@@ -228,14 +242,14 @@ def was_verified_user(cog, obj, *args, **kwargs):
         obj = obj.author
     member = get_member(cog.bot, obj)
     if member is not None and VERIF_ROLE in get_role_ids(member):
-        return True, None
+        return CheckResult(True, None)
     try:
         member_data = cog.db.get_member_data(obj.id)
         if member_data[MemberKey.ID_VER]:
-            return True, None
+            return CheckResult(True, None)
     except MemberNotFound:
         pass
-    return False, "You must be verified to do that."
+    return CheckResult(False, "You must be verified to do that.")
 
 def is_unverified_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function is unverified.
@@ -254,8 +268,8 @@ def is_unverified_user(cog, obj, *args, **kwargs):
     """
     member = get_member(cog.bot, obj.author)
     if member is not None and VERIF_ROLE in get_role_ids(member):
-        return False, "You are already verified."
-    return True, None
+        return CheckResult(False, "You are already verified.")
+    return CheckResult(True, None)
 
 def is_strictly_verified_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function is verified in database.
@@ -276,11 +290,11 @@ def is_strictly_verified_user(cog, obj, *args, **kwargs):
     try:
         member_data = cog.db.get_member_data(member.id)
         if member_data[MemberKey.ID_VER]:
-            return True, None
+            return CheckResult(True, None)
     except MemberNotFound:
         pass
-    return False, "Could not find your details in the database. Please " \
-        "contact an admin."
+    return CheckResult(False, "Could not find your details in the database. "
+        "Please contact an admin.")
 
 def never_verified_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function was verified in past.
@@ -303,10 +317,10 @@ def never_verified_user(cog, obj, *args, **kwargs):
         try:
             member_data = cog.db.get_member_data(obj.author.id)
         except MemberNotFound:
-            return True, None
+            return CheckResult(True, None)
         if not member_data[MemberKey.ID_VER]:
-            return True, None
-    return False, "You are already verified."
+            return CheckResult(True, None)
+    return CheckResult(False, "You are already verified.")
 
 def is_admin_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function has at least one admin role.
@@ -325,8 +339,8 @@ def is_admin_user(cog, obj, *args, **kwargs):
     """
     member = get_member(cog.bot, obj.author)
     if set(ADMIN_ROLES).isdisjoint(get_role_ids(member)):
-        return False, "You are not authorised to do that."
-    return True, None
+        return CheckResult(False, "You are not authorised to do that.")
+    return CheckResult(True, None)
 
 def is_guild_member(cog, obj, *args, **kwargs):
     """Checks that user that invoked function is member of guild.
@@ -344,8 +358,9 @@ def is_guild_member(cog, obj, *args, **kwargs):
         2. Error message to supply, if check failed.
     """
     if get_member(cog.bot, obj.author) is None:
-        return False, "You must be a member of the server to do that."
-    return True, None
+        return CheckResult(False, "You must be a member of the server to do "
+            "that.")
+    return CheckResult(True, None)
 
 def in_ver_channel(cog, obj, *args, **kwargs):
     """Checks that function was invoked in verification channel.
@@ -362,9 +377,9 @@ def in_ver_channel(cog, obj, *args, **kwargs):
     """
     ver_channel = cog.guild.get_channel(VER_CHANNEL)
     if obj.channel.id != ver_channel.id:
-        return False, ("That command can only be used in "
+        return CheckResult(False, "That command can only be used in "
             f"{ver_channel.mention}.")
-    return True, None
+    return CheckResult(True, None)
 
 def in_admin_channel(cog, obj, *args, **kwargs):
     """Checks that function was invoked in admin channel.
@@ -380,8 +395,9 @@ def in_admin_channel(cog, obj, *args, **kwargs):
         2. Error message to supply, if check failed.
     """
     if obj.channel.id != ADMIN_CHANNEL:
-        return False, "You must be in the admin channel to do that."
-    return True, None
+        return CheckResult(False, "You must be in the admin channel to do "
+            "that.")
+    return CheckResult(True, None)
 
 def in_dm_channel(cog, obj, *args, **kwargs):
     """Checks that function was invoked in DM channel.
@@ -397,8 +413,8 @@ def in_dm_channel(cog, obj, *args, **kwargs):
         2. Error message to supply, if check failed.
     """
     if obj.guild is not None:
-        return False, "You must be in a DM channel to do that."
-    return True, None
+        return CheckResult(False, "You must be in a DM channel to do that.")
+    return CheckResult(True, None)
 
 def is_human(cog, obj, *args, **kwargs):
     """Checks that function was invoked by human user.
@@ -413,11 +429,11 @@ def is_human(cog, obj, *args, **kwargs):
         1. Boolean result of check.
         2. Error message to supply, if check failed.
     """
-    if not isinstance(obj, Member):
+    if not isinstance(obj, User):
         obj = obj.author
     if obj.bot:
-        return False, "You are not human."
-    return True, None
+        return CheckResult(False, "You are not human.")
+    return CheckResult(True, None)
 
 def is_not_command(cog, message, *args, **kwargs):
     """Checks that message that invoked function was not a command.
@@ -434,8 +450,8 @@ def is_not_command(cog, message, *args, **kwargs):
     """
     if message.content.startswith(PREFIX) \
         and cog.bot.get_command(message.content.split(" ")[0][1:]):
-        return False, "That is a command."
-    return True, None
+        return CheckResult(False, "That is a command.")
+    return CheckResult(True, None)
 
 def get_member(bot, user):
     """Get member of guild given User object.
