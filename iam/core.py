@@ -47,11 +47,8 @@ async def show_help_all(bot, target):
         bot: Bot to generate help text for.
         target: Object to send message to.
     """
-    out = ["**All commands:**"]
-    for cmd in bot.commands:
-        if cmd.hidden:
-            continue
-        out.append(make_help_text(cmd))
+    out = ["**All commands:**"] + [make_help_text(cmd) for cmd in bot.commands
+        if not cmd.hidden]
     await target.send("\n".join(out))
 
 async def show_help_single(bot, target, query):
@@ -65,7 +62,7 @@ async def show_help_single(bot, target, query):
         query: String representing command to search for.
     """
     cmd = bot.get_command(query)
-    if cmd == None or cmd.hidden:
+    if cmd is None or cmd.hidden:
         await target.send("No such command exists!")
         return
     await target.send(f"Usage: {make_help_text(cmd)}")
