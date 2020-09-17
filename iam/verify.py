@@ -16,7 +16,7 @@ from iam.config import (
     PREFIX, SERVER_ID, VERIF_ROLE, ADMIN_CHANNEL, MAX_VER_EMAILS
 )
 from iam.hooks import (
-    pre, post, check, log_attempt, log_invoke, log_success, is_verified_user,
+    pre, post, check, log_attempt, log_invoke, log_success, has_verified_role,
     was_verified_user, is_unverified_user, never_verified_user, is_admin_user,
     is_guild_member, in_ver_channel, in_admin_channel, in_dm_channel, is_human,
     is_not_command

@@ -202,8 +202,8 @@ def check(check_func, level=DEBUG, notify=False):
         return res.status
     return action
 
-def is_verified_user(cog, obj, *args, **kwargs):
-    """Checks that user that invoked function is verified.
+def has_verified_role(cog, obj, *args, **kwargs):
+    """Checks that user that invoked function has the verified role.
 
     Verified role defined in config.
 
@@ -271,7 +271,7 @@ def is_unverified_user(cog, obj, *args, **kwargs):
         return CheckResult(False, "You are already verified.")
     return CheckResult(True, None)
 
-def is_strictly_verified_user(cog, obj, *args, **kwargs):
+def verified_in_db(cog, obj, *args, **kwargs):
     """Checks that user that invoked function is verified in database.
 
     Associated cog must have bot and db as instance variables.
@@ -297,7 +297,7 @@ def is_strictly_verified_user(cog, obj, *args, **kwargs):
         "Please contact an admin.")
 
 def never_verified_user(cog, obj, *args, **kwargs):
-    """Checks that user that invoked function was verified in past.
+    """Checks that user that invoked function was never verified in past.
     
     Verified in past defined as either verified in the database or currently
     has verified rank (defined in config) in Discord.
