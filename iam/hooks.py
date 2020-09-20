@@ -238,7 +238,7 @@ def was_verified_user(cog, obj, *args, **kwargs):
         1. Boolean result of check.
         2. Error message to supply, if check failed.
     """
-    if not (isinstance(obj, User) or isinstance(obj, Member):
+    if not (isinstance(obj, User) or isinstance(obj, Member)):
         obj = obj.author
     member = get_member(cog.bot, obj)
     if member is not None and VERIF_ROLE in get_role_ids(member):
@@ -285,7 +285,7 @@ def verified_in_db(cog, obj, *args, **kwargs):
         2. Error message to supply, if check failed.
     """
     member = obj
-    if not (isinstance(obj, User) or isinstance(obj, Member):
+    if not (isinstance(obj, User) or isinstance(obj, Member)):
         member = obj.author
     try:
         member_data = cog.db.get_member_data(member.id)
@@ -429,7 +429,7 @@ def is_human(cog, obj, *args, **kwargs):
         1. Boolean result of check.
         2. Error message to supply, if check failed.
     """
-    if not (isinstance(obj, User) or isinstance(obj, Member):
+    if not (isinstance(obj, User) or isinstance(obj, Member)):
         obj = obj.author
     if obj.bot:
         return CheckResult(False, "You are not human.")
