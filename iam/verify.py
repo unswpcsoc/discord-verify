@@ -16,10 +16,10 @@ from iam.config import (
     PREFIX, SERVER_ID, VERIF_ROLE, ADMIN_CHANNEL, MAX_VER_EMAILS
 )
 from iam.hooks import (
-    pre, post, check, log_attempt, log_invoke, log_success, has_verified_role,
-    was_verified_user, is_unverified_user, never_verified_user, is_admin_user,
-    is_guild_member, in_ver_channel, in_admin_channel, in_dm_channel, is_human,
-    is_not_command
+    pre, post, check, CheckResult, log_attempt, log_invoke, log_success,
+    has_verified_role, was_verified_user, is_unverified_user,
+    never_verified_user, is_admin_user, is_guild_member, in_ver_channel,
+    in_admin_channel, in_dm_channel, is_human, is_not_command
 )
 
 LOG = new_logger(__name__)
@@ -95,12 +95,12 @@ def _awaiting_approval(db, ctx, member, *args, **kwargs):
     try:
         member_data = db.get_member_data(member.id)
     except MemberNotFound:
-        return False, "That user is not currently being verified."
+        return CheckResult(False, "That user is not currently being verified.")
     if member_data[MemberKey.ID_VER]:
-        return False, "That user is already verified."
+        return CheckResult(False, "That user is already verified.")
     elif member_data[MemberKey.VER_STATE] != State.AWAIT_APPROVAL:
-        return False, "That user is not awaiting approval."
-    return True, None
+        return CheckResult(False, "That user is not awaiting approval.")
+    return CheckResult(True, None)
 
 def is_valid_zid(zid):
     """Returns whether given string is a valid zID.
