@@ -107,7 +107,7 @@ async def test_proc_begin_already_verifying():
         db.get_member_data.return_value = member_data
 
         # Call
-        await proc_begin(db, None, None, member)
+        await proc_begin(db, None, None, None, member)
 
         # Ensure correct user queried.
         db.get_member_data.assert_called_once_with(member.id)
@@ -889,11 +889,13 @@ async def test_proc_exec_approve_standard():
     db.get_member_data.return_value = member_data
     exec = new_mock_user(1)
     channel = new_mock_channel(2)
+    join_announce_channel = new_mock_channel(3)
     ver_role = AsyncMock()
 
     # Call
     with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
-        await proc_exec_approve(db, channel, member, exec, ver_role)
+        await proc_exec_approve(db, channel, member, join_announce_channel,
+            exec, ver_role)
 
     # Ensure user entry in database updated accordingly.
     db.update_member_data.assert_called_once_with(member.id, {
@@ -902,7 +904,8 @@ async def test_proc_exec_approve_standard():
     })
 
     # Ensure user granted rank.
-    mock_proc_grant_rank.assert_awaited_once_with(ver_role, channel, member)
+    mock_proc_grant_rank.assert_awaited_once_with(ver_role, channel,
+        join_announce_channel, member)
 
     # Ensure no side effects occurred.
     member.send.assert_not_awaited()
@@ -928,7 +931,8 @@ async def test_proc_exec_approve_not_awaiting():
         # Call
         with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
             with pytest.raises(CheckFailed) as exc:
-                await proc_exec_approve(db, channel, member, exec, ver_role)
+                await proc_exec_approve(db, channel, member, None, exec,
+                    ver_role)
         await exc.value.notify()
 
         # Ensure error sent to channel.
@@ -960,7 +964,8 @@ async def test_proc_exec_approve_already_verified():
         # Call
         with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
             with pytest.raises(CheckFailed) as exc:
-                await proc_exec_approve(db, channel, member, exec, ver_role)
+                await proc_exec_approve(db, channel, member, None, exec,
+                    ver_role)
         await exc.value.notify()
 
         # Ensure error sent to channel.
@@ -989,7 +994,8 @@ async def test_proc_exec_approve_never_verifying():
         # Call
         with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
             with pytest.raises(CheckFailed) as exc:
-                await proc_exec_approve(db, channel, member, exec, ver_role)
+                await proc_exec_approve(db, channel, member, None, exec,
+                    ver_role)
         await exc.value.notify()
 
         # Ensure error sent to channel.
@@ -1301,13 +1307,14 @@ async def test_proc_verify_manual_unsw_standard():
             member = new_mock_user(0)
             exec = new_mock_user(1)
             channel = new_mock_channel(2)
+            join_announce_channel = new_mock_channel(3)
             ver_role = AsyncMock()
             before_time = time()
 
             # Call
             with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
-                await proc_verify_manual(db, ver_role, channel, exec, member,
-                    full_name, zid)
+                await proc_verify_manual(db, ver_role, channel,
+                    join_announce_channel, exec, member, full_name, zid)
 
             # Ensure user entry in database created accordingly.
             member_data = make_def_member_data()
@@ -1327,7 +1334,7 @@ async def test_proc_verify_manual_unsw_standard():
 
             # Ensure user granted rank.
             mock_proc_grant_rank.assert_awaited_once_with(ver_role, channel,
-                member)
+                join_announce_channel, member)
 
             # Ensure no side effects occurred.
             member.send.assert_not_awaited()
@@ -1349,8 +1356,8 @@ async def test_proc_verify_manual_unsw_invalid_zid():
 
             # Call
             with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
-                await proc_verify_manual(db, ver_role, channel, exec, member,
-                    full_name, zid)
+                await proc_verify_manual(db, ver_role, channel, None, exec,
+                    member, full_name, zid)
 
             # Ensure error sent in channel.
             channel.send.assert_awaited_once_with("That is neither a valid "
@@ -1373,13 +1380,14 @@ async def test_proc_verify_manual_non_unsw_standard():
             member = new_mock_user(0)
             exec = new_mock_user(1)
             channel = new_mock_channel(2)
+            join_announce_channel = new_mock_channel(3)
             ver_role = AsyncMock()
             before_time = time()
 
             # Call
             with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
-                await proc_verify_manual(db, ver_role, channel, exec, member,
-                    full_name, email)
+                await proc_verify_manual(db, ver_role, channel,
+                    join_announce_channel, exec, member, full_name, email)
 
             # Ensure user entry in database created accordingly.
             member_data = make_def_member_data()
@@ -1398,7 +1406,7 @@ async def test_proc_verify_manual_non_unsw_standard():
 
             # Ensure user granted rank.
             mock_proc_grant_rank.assert_awaited_once_with(ver_role, channel,
-                member)
+                join_announce_channel, member)
 
             # Ensure no side effects occurred.
             member.send.assert_not_awaited()
@@ -1420,8 +1428,8 @@ async def test_proc_verify_manual_non_unsw_invalid_email():
 
             # Call
             with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
-                await proc_verify_manual(db, ver_role, channel, exec, member,
-                    full_name, email)
+                await proc_verify_manual(db, ver_role, channel, None, exec,
+                    member, full_name, email)
 
             # Ensure error sent in channel.
             channel.send.assert_awaited_once_with("That is neither a valid "
@@ -1440,10 +1448,12 @@ async def test_proc_grant_rank_standard():
     # Setup
     member = new_mock_user(0)
     admin_channel = new_mock_channel(1)
+    join_announce_channel = new_mock_channel(2)
     ver_role = AsyncMock()
 
     # Call
-    await proc_grant_rank(ver_role, admin_channel, member)
+    await proc_grant_rank(ver_role, admin_channel, join_announce_channel,
+        member)
 
     # Ensure user was granted rank.
     member.add_roles.assert_awaited_once_with(ver_role)
@@ -1453,6 +1463,8 @@ async def test_proc_grant_rank_standard():
         "the server!")
     admin_channel.send.assert_awaited_once_with(f"{member.mention} is now "
         "verified.")
+    join_announce_channel.send.assert_awaited_once_with("Welcome "
+        f"{member.mention} to PCSoc!")
 
 @pytest.mark.asyncio
 async def test_proc_grant_rank_silent():
@@ -1460,10 +1472,12 @@ async def test_proc_grant_rank_silent():
     # Setup
     member = new_mock_user(0)
     admin_channel = new_mock_channel(1)
+    join_announce_channel = new_mock_channel(2)
     ver_role = AsyncMock()
 
     # Call
-    await proc_grant_rank(ver_role, admin_channel, member, silent=True)
+    await proc_grant_rank(ver_role, admin_channel, join_announce_channel,
+        member, silent=True)
 
     # Ensure user was granted rank.
     member.add_roles.assert_awaited_once_with(ver_role)
@@ -1471,3 +1485,4 @@ async def test_proc_grant_rank_silent():
     # Ensure no side effects occurred.
     member.send.assert_not_awaited()
     admin_channel.send.assert_not_awaited()
+    join_announce_channel.send.assert_not_awaited()

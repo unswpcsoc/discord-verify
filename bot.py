@@ -5,8 +5,9 @@
 import sys
 import traceback
 from logging import INFO
+from discord import Intents
 from discord.ext.commands import (
-    Bot, Intents, CommandNotFound, DisabledCommand, BadArgument,
+    Bot, CommandNotFound, DisabledCommand, BadArgument,
     TooManyArguments, ArgumentParsingError, MissingRequiredArgument
 )
 

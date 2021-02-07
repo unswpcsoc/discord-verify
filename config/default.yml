@@ -7,6 +7,7 @@ max-verification-emails: 5
 admin-channel: CHANNEL-ID-HERE
 admin-roles:
   - ROLE-ID-HERE
+join-announce-channel: CHANNEL-ID-HERE
 email-address: "YOUR-EMAIL-ADDRESS-HERE"
 aws-region: "ap-southeast-2"
 aws-access-key-id: "YOUR-AWS-ACCESS-KEY-ID-HERE"

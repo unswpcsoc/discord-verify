@@ -20,6 +20,7 @@ try:
     MAX_VER_EMAILS = config["max-verification-emails"]
     ADMIN_CHANNEL = config["admin-channel"]
     ADMIN_ROLES = config["admin-roles"]
+    JOIN_ANNOUNCE_CHANNEL = config["join-announce-channel"]
     EMAIL = config["email-address"]
     AWS_REGION = config["aws-region"]
     AWS_ACCESS_KEY_ID = config["aws-access-key-id"]
