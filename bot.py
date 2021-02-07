@@ -6,7 +6,7 @@ import sys
 import traceback
 from logging import INFO
 from discord.ext.commands import (
-    Bot, CommandNotFound, DisabledCommand, BadArgument,
+    Bot, Intents, CommandNotFound, DisabledCommand, BadArgument,
     TooManyArguments, ArgumentParsingError, MissingRequiredArgument
 )
 
@@ -14,6 +14,7 @@ from iam.log import new_logger
 from iam.config import BOT_TOKEN, PREFIX
 
 LOG = None
+INTENTS = Intents.all()
 
 def main():
     global LOG
@@ -21,7 +22,7 @@ def main():
     LOG = new_logger(__name__)
     sys.excepthook = exception_handler
 
-    BOT = Bot(command_prefix=PREFIX)
+    BOT = Bot(command_prefix=PREFIX, intents=INTENTS)
 
     @BOT.event
     async def on_error(event, *args, **kwargs):
