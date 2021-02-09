@@ -761,7 +761,7 @@ async def proc_grant_rank(ver_role, admin_channel, join_announce_channel,
     await member.add_roles(ver_role)
     LOG.info(f"Granted verified rank to member '{member.id}'")
     if not silent:
-        await member.send("You are now verified. Welcome to the server!"
+        await member.send("You are now verified. Welcome to the server! "
             "If you are interested in subscribing to our newsletter, try the "
             f"`{PREFIX}newsletter` command.")
         await admin_channel.send(f"{member.mention} is now verified.")

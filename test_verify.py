@@ -1463,7 +1463,8 @@ async def test_proc_grant_rank_standard():
 
     # Ensure notifications were sent.
     member.send.assert_awaited_once_with("You are now verified. Welcome to "
-        "the server!")
+        "the server! If you are interested in subscribing to our newsletter, "
+            f"try the `{PREFIX}newsletter` command.")
     admin_channel.send.assert_awaited_once_with(f"{member.mention} is now "
         "verified.")
     join_announce_channel.send.assert_awaited_once_with("Welcome "
