@@ -438,8 +438,9 @@ async def proc_request_code(db, member):
     Args:
         member: Member object to make request to.
     """
-    await member.send("Please enter the code sent to your email "
-        "(check your spam folder if you don't see it).\n"
+    await member.send("Please enter the code sent to your email. If you are a "
+        "UNSW student, this is your zID@student.unsw.edu.au email. Please "
+        "check your spam folder if you don't see it.\n"
         f"You can request another email by typing `{PREFIX}resend`.")
 
 @pre(log_invoke(LOG))
