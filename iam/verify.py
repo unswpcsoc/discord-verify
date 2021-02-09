@@ -156,7 +156,7 @@ def get_code(db, user, noise):
 
 @pre(log_invoke(LOG))
 @post(log_success(LOG))
-async def proc_begin(db, ver_role, admin_channel, member):
+async def proc_begin(db, ver_role, ver_channel, admin_channel, member):
     """Begin verification process for member.
 
     Creates new entry in database.
@@ -169,6 +169,7 @@ async def proc_begin(db, ver_role, admin_channel, member):
     Args:
         db: Database object.
         ver_role: Verified role object to grant to members.
+        ver_channel: Channel object to send check DMs instruction to.
         admin_channel: Channel object to send exec notifications to.
         member: Member object to begin verifying.
     """
@@ -205,6 +206,7 @@ async def proc_begin(db, ver_role, admin_channel, member):
                     MemberKey.MAX_EMAIL_ATTEMPTS: max_email_attempts + 2
                 })
 
+    await ver_channel.send("Please check your DMs for a message from me.")
     await proc_request_name(db, member)
 
 @pre(log_invoke(LOG))
@@ -843,8 +845,8 @@ class Verify(Cog, name=COG_NAME):
         Args:
             ctx: Context object associated with command invocation.
         """
-        await proc_begin(self.db, self.ver_role, self.admin_channel,
-            ctx.author)
+        await proc_begin(self.db, self.ver_role, ctx.channel,
+            self.admin_channel, ctx.author)
 
     @grp_verify.command(
         name="approve",

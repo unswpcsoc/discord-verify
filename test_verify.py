@@ -67,12 +67,13 @@ async def test_proc_begin_standard():
     """User not undergoing verification can begin verification."""
     # Setup
     db = MagicMock()
+    ver_channel = new_mock_channel(0)
     member = new_mock_user(0)
     db.get_member_data = MagicMock(side_effect=MemberNotFound(member.id, ""))
     before_time = time()
 
     # Call
-    await proc_begin(db, None, None, member)
+    await proc_begin(db, None, ver_channel, None, member)
 
     # Ensure user entry in DB initialised with default data.
     db.set_member_data.assert_called_once()
@@ -83,7 +84,9 @@ async def test_proc_begin_standard():
     assert call_args[1][MemberKey.VER_TIME] >= before_time and \
         call_args[1][MemberKey.VER_TIME] <= time()
 
-    # Ensure user was sent prompt.
+    # Ensure user was sent prompts.
+    ver_channel.send.assert_awaited_once_with("Please check your DMs for a "
+        "message from me.")
     member.send.assert_awaited_once_with("What is your full name as it "
         "appears on your government-issued ID?\nYou can restart this "
         f"verification process at any time by typing `{PREFIX}restart`.")
@@ -107,7 +110,7 @@ async def test_proc_begin_already_verifying():
         db.get_member_data.return_value = member_data
 
         # Call
-        await proc_begin(db, None, None, None, member)
+        await proc_begin(db, None, None, None, None, member)
 
         # Ensure correct user queried.
         db.get_member_data.assert_called_once_with(member.id)
@@ -136,7 +139,7 @@ async def test_proc_begin_already_verified():
         db.get_member_data.return_value = member_data
 
         # Call
-        await proc_begin(db, ver_role, admin_channel, member)
+        await proc_begin(db, ver_role, None, admin_channel, member)
 
         # Ensure correct user queried.
         db.get_member_data.assert_called_once_with(member.id)
