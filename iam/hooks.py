@@ -34,7 +34,7 @@ class CheckFailed(Exception):
         
         Send msg to ctx if silent == False.
         """
-        await self.obj.send(self.msg)
+        await self.obj.reply(self.msg)
 
 class CheckResult:
     """Store boolean, message result of a check.

@@ -66,6 +66,7 @@ def new_mock_attachment(id):
 async def test_proc_begin_standard():
     """User not undergoing verification can begin verification."""
     # Setup
+    invoke_message = new_mock_message(0)
     db = MagicMock()
     ver_channel = new_mock_channel(0)
     member = new_mock_user(0)
@@ -73,7 +74,7 @@ async def test_proc_begin_standard():
     before_time = time()
 
     # Call
-    await proc_begin(db, None, ver_channel, None, member)
+    await proc_begin(invoke_message, db, None, None, member)
 
     # Ensure user entry in DB initialised with default data.
     db.set_member_data.assert_called_once()
@@ -85,7 +86,7 @@ async def test_proc_begin_standard():
         call_args[1][MemberKey.VER_TIME] <= time()
 
     # Ensure user was sent prompts.
-    ver_channel.send.assert_awaited_once_with("Please check your DMs for a "
+    invoke_message.reply.assert_awaited_once_with("Please check your DMs for a "
         "message from me.")
     member.send.assert_awaited_once_with("What is your full name as it "
         "appears on your government-issued ID?\nYou can restart this "

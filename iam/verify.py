@@ -156,7 +156,7 @@ def get_code(db, user, noise):
 
 @pre(log_invoke(LOG))
 @post(log_success(LOG))
-async def proc_begin(db, ver_role, ver_channel, admin_channel, member):
+async def proc_begin(invoke_message, db, ver_role, admin_channel, member):
     """Begin verification process for member.
 
     Creates new entry in database.
@@ -167,6 +167,7 @@ async def proc_begin(db, ver_role, ver_channel, admin_channel, member):
     the verified rank.
 
     Args:
+        invoke_message: Message associated with process invocation.
         db: Database object.
         ver_role: Verified role object to grant to members.
         ver_channel: Channel object to send check DMs instruction to.
@@ -206,7 +207,7 @@ async def proc_begin(db, ver_role, ver_channel, admin_channel, member):
                     MemberKey.MAX_EMAIL_ATTEMPTS: max_email_attempts + 2
                 })
 
-    await ver_channel.send("Please check your DMs for a message from me.")
+    await invoke_message.reply("Please check your DMs for a message from me.")
     await proc_request_name(db, member)
 
 @pre(log_invoke(LOG))
@@ -846,7 +847,7 @@ class Verify(Cog, name=COG_NAME):
         Args:
             ctx: Context object associated with command invocation.
         """
-        await proc_begin(self.db, self.ver_role, ctx.channel,
+        await proc_begin(ctx.message, self.db, self.ver_role,
             self.admin_channel, ctx.author)
 
     @grp_verify.command(
@@ -927,15 +928,19 @@ class Verify(Cog, name=COG_NAME):
     @pre(check(is_admin_user, notify=True))
     @pre(log_invoke(LOG))
     @post(log_success(LOG))
-    async def cmd_verify_check(self, ctx, member: Member):
+    async def cmd_verify_check(self, ctx, member_id):
         """Handle verify check command.
 
         Resend ID attachments from member to admin channel defined in config.
 
         Args:
             ctx: Context object associated with command invocation.
-            member: Member object to retrieve associated ID attachments of.
+            member_id: ID of member to retrieve associated ID attachments of.
         """
+        member = self.guild.get_member(int(member_id))
+        if member is None:
+            await ctx.reply("Could not find a member with that ID!")
+            return
         await proc_resend_id(self.db, ctx.channel, member)
 
     @grp_verify.command(
@@ -948,17 +953,21 @@ class Verify(Cog, name=COG_NAME):
     @pre(check(is_admin_user, notify=True))
     @pre(log_invoke(LOG))
     @post(log_success(LOG))
-    async def cmd_verify_manual(self, ctx, member: Member, name, arg):
+    async def cmd_verify_manual(self, ctx, member_id, name, arg):
         """Handle verify manual command.
 
         Add member details to database and grant them the verified rank.
 
         Args:
             ctx: Context object associated with command invocation.
-            member: Associated Member object to verify.
+            member_id: ID of member to verify.
             name: String representing member name.
             arg: String representing either zID or email.
         """
+        member = self.guild.get_member(int(member_id))
+        if member is None:
+            await ctx.reply("Could not find a member with that ID!")
+            return
         await proc_verify_manual(self.db, self.ver_role, ctx.channel,
             self.join_announce_channel, ctx.author, member, name, arg)
 
