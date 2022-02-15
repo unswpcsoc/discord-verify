@@ -255,9 +255,19 @@ async def proc_request_name(db, member):
     Args:
         member: Member object to make request to.
     """
-    await member.send("What is your full name as it appears on your "
-        "government-issued ID?\nYou can restart this verification process "
-        f"at any time by typing `{PREFIX}restart`.")
+    await member.send("Arc - UNSW Student Life strongly recommends all student societies verify their members' identities before allowing them to interact with their online communities (Arc Clubs Handbook section 22.2)\n\n"
+                      "To send messages in our PCSoc Discord server, we require the following:\n"
+                      "(1) Your full name\n"
+                      "(2) Whether or not you're a student at UNSW\n"
+                      "  (2a) If yes, your UNSW-issued zID\n\n"
+                      "  (2b) If not, your email address\n"
+                      "  (3b) Your government-issued photo ID (e.g. driver's license or photo card).\n\n"
+                      "The information you share with us is only accessible by our current executive team - we do not share this with any other parties. You may request to have your record deleted if you are no longer a member of PCSoc.\n"
+                      "If you have questions or you're stuck, feel free to message any of our executives :)\n\n"
+                      "-----\n"
+                      "(1) What is your full name as it appears on your government-issued ID?\n"
+                      "You can restart this verification process "
+                     f"at any time by typing `{PREFIX}restart`.")
 
 @pre(log_invoke(LOG))
 @post(log_success(LOG))
@@ -290,7 +300,7 @@ async def proc_request_unsw(db, member):
     Args:
         member: Member object to make request to.
     """
-    await member.send("Are you a UNSW student? Please type `y` or `n`.")
+    await member.send("(2) Are you a UNSW student? Please type `y` or `n`.")
 
 @pre(log_invoke(LOG))
 @post(log_success(LOG))
@@ -325,7 +335,7 @@ async def proc_request_zid(db, member):
     Args:
         member: Member object to make request to.
     """
-    await member.send("What is your zID?")
+    await member.send("(2a) What is your zID?")
 
 @pre(log_invoke(LOG))
 @post(log_success(LOG))
@@ -365,7 +375,7 @@ async def proc_request_email(db, member):
     Args:
         member: Member object to make request to.
     """
-    await member.send("What is your email address?")
+    await member.send("(2b) What is your email address?")
 
 @pre(log_invoke(LOG))
 @post(log_success(LOG))
@@ -509,7 +519,7 @@ async def proc_request_id(db, member):
     Args:
         member: Member object to make request to.
     """
-    await member.send("Please send a message with a "
+    await member.send("(3b) Please send a message with a "
         "photo of your government-issued ID attached.")
 
 @pre(log_invoke(LOG))
