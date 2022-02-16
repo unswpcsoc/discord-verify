@@ -359,7 +359,7 @@ async def test_state_await_unsw_yes():
         await state_await_unsw(db, member, ans)
 
         # Ensure user was sent prompt.
-        member.send.awaited_once_with("What is your zID?")
+        member.send.awaited_once_with("(2a) What is your zID?")
 
         # Ensure user state updated to awaiting zID.
         db.update_member_data.assert_called_once_with(member.id,
@@ -381,7 +381,7 @@ async def test_state_await_unsw_no():
         await state_await_unsw(db, member, ans)
 
         # Ensure user was sent prompt.
-        member.send.awaited_once_with("What is your email address?")
+        member.send.awaited_once_with("(2b) What is your email address?")
 
         # Ensure user state updated to awaiting email.
         db.update_member_data.assert_called_once_with(member.id,
@@ -689,7 +689,7 @@ async def test_state_await_code_non_unsw():
             call_args[1][MemberKey.VER_TIME] <= time()
 
         # Ensure user was sent prompt.
-        assert member.send.awaited_once_with("Please send a message with "
+        assert member.send.awaited_once_with("(3b) Please send a message with "
             "a photo of your government-issued ID attached.")
 
         # Ensure user state updated to awaiting ID.
