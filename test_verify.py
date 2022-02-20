@@ -88,9 +88,22 @@ async def test_proc_begin_standard():
     # Ensure user was sent prompts.
     invoke_message.reply.assert_awaited_once_with("Please check your DMs for a "
         "message from me.")
-    member.send.assert_awaited_once_with("What is your full name as it "
-        "appears on your government-issued ID?\nYou can restart this "
-        f"verification process at any time by typing `{PREFIX}restart`.")
+    member.send.assert_awaited_once_with("Arc - UNSW Student Life strongly recommends all student societies verify their members' identities before allowing them to interact with their online communities (Arc Clubs Handbook section 22.2)\n"
+                      "\n"
+                      "To send messages in our PCSoc Discord server, we require the following:\n"
+                      "(1) Your full name\n"
+                      "(2) Whether or not you're a student at UNSW\n"
+                      "  (2a) If yes, your UNSW-issued zID\n"
+                      "\n"
+                      "  (2b) If not, your email address\n"
+                      "  (3b) Your government-issued photo ID (e.g. driver's license or photo card).\n"
+                      "\n"
+                      "The information you share with us is only accessible by our current executive team - we do not share this with any other parties. You may request to have your record deleted if you are no longer a member of PCSoc.\n"
+                      "If you have questions or you're stuck, feel free to message any of our executives :)\n"
+                      "-----\n"
+                      "(1) What is your full name as it appears on your government-issued ID?\n"
+                      "You can restart this verification process "
+                     f"at any time by typing `{PREFIX}restart`.")
 
     # Ensure user state updated to awaiting name.
     db.update_member_data.assert_called_once_with(member.id,
@@ -191,9 +204,22 @@ async def test_proc_restart_standard():
             call_args[1][MemberKey.VER_TIME] < time()
 
         # Ensure user was sent prompt.
-        user.send.assert_awaited_once_with("What is your full name as it "
-            "appears on your government-issued ID?\nYou can restart this "
-            f"verification process at any time by typing `{PREFIX}restart`.")
+        user.send.assert_awaited_once_with("Arc - UNSW Student Life strongly recommends all student societies verify their members' identities before allowing them to interact with their online communities (Arc Clubs Handbook section 22.2)\n"
+                      "\n"
+                      "To send messages in our PCSoc Discord server, we require the following:\n"
+                      "(1) Your full name\n"
+                      "(2) Whether or not you're a student at UNSW\n"
+                      "  (2a) If yes, your UNSW-issued zID\n"
+                      "\n"
+                      "  (2b) If not, your email address\n"
+                      "  (3b) Your government-issued photo ID (e.g. driver's license or photo card).\n"
+                      "\n"
+                      "The information you share with us is only accessible by our current executive team - we do not share this with any other parties. You may request to have your record deleted if you are no longer a member of PCSoc.\n"
+                      "If you have questions or you're stuck, feel free to message any of our executives :)\n"
+                      "-----\n"
+                      "(1) What is your full name as it appears on your government-issued ID?\n"
+                      "You can restart this verification process "
+                     f"at any time by typing `{PREFIX}restart`.")
 
         # Ensure user state updated to awaiting name.
         db.update_member_data.assert_called_with(user.id,
@@ -291,8 +317,7 @@ async def test_state_await_name_standard():
     assert call_args == (member.id, {MemberKey.NAME: full_name})
 
     # Ensure user was sent prompt.
-    member.send.assert_awaited_once_with("Are you a UNSW student? Please type "
-        "`y` or `n`.")
+    member.send.assert_awaited_once_with("(2) Are you a UNSW student? Please type `y` or `n`.")
 
     # Ensure user state updated to awaiting is UNSW.
     call_args = call_args_list[1].args
@@ -334,7 +359,7 @@ async def test_state_await_unsw_yes():
         await state_await_unsw(db, member, ans)
 
         # Ensure user was sent prompt.
-        member.send.awaited_once_with("What is your zID?")
+        member.send.awaited_once_with("(2a) What is your zID?")
 
         # Ensure user state updated to awaiting zID.
         db.update_member_data.assert_called_once_with(member.id,
@@ -356,7 +381,7 @@ async def test_state_await_unsw_no():
         await state_await_unsw(db, member, ans)
 
         # Ensure user was sent prompt.
-        member.send.awaited_once_with("What is your email address?")
+        member.send.awaited_once_with("(2b) What is your email address?")
 
         # Ensure user state updated to awaiting email.
         db.update_member_data.assert_called_once_with(member.id,
@@ -664,7 +689,7 @@ async def test_state_await_code_non_unsw():
             call_args[1][MemberKey.VER_TIME] <= time()
 
         # Ensure user was sent prompt.
-        assert member.send.awaited_once_with("Please send a message with "
+        assert member.send.awaited_once_with("(3b) Please send a message with "
             "a photo of your government-issued ID attached.")
 
         # Ensure user state updated to awaiting ID.
