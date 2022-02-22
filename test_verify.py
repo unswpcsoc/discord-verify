@@ -24,7 +24,7 @@ VALID_ZIDS = ["z5555555", "z1234567", "z0000000", "z5242579"]
 INVALID_ZIDS = ["5555555", "z12345678", "z0", "5242579z"]
 VALID_EMAILS = [
     "thesabinelim@gmail.com", "arcdelegate@unswpcsoc.com",
-    "sabine.lim@unsw.edu.au", "z5242579@student.unsw.edu.au", "g@g.gg"
+    "sabine.lim@unsw.edu.au", "z5242579@unsw.edu.au", "g@g.gg"
 ]
 INVALID_EMAILS = ["a@a", "google.com", "email", "", "@gmail.com", "hi@"]
 SAMPLE_CODES = ["cf137a", "000000", "hello_world"]
@@ -419,7 +419,7 @@ async def test_state_await_zid_standard():
         mail = MagicMock()
         member = new_mock_user(0)
         member_data = make_def_member_data()
-        email = f"{zid}@student.unsw.edu.au"
+        email = f"{zid}@unsw.edu.au"
 
         # Call
         with patch("iam.verify.proc_send_email") as mock_proc_send_email:
@@ -449,7 +449,7 @@ async def test_state_await_zid_invalid():
         mail = MagicMock()
         member = new_mock_user(0)
         member_data = make_def_member_data()
-        email = f"{zid}@student.unsw.edu.au"
+        email = f"{zid}@unsw.edu.au"
 
         # Call
         with patch("iam.verify.proc_send_email") as mock_proc_send_email:
@@ -1352,7 +1352,7 @@ async def test_proc_verify_manual_unsw_standard():
             member_data[MemberKey.EMAIL_VER] = True
             member_data[MemberKey.ID_VER] = True
             member_data[MemberKey.VER_EXEC] = exec.id
-            member_data[MemberKey.EMAIL] = f"{zid}@student.unsw.edu.au"
+            member_data[MemberKey.EMAIL] = f"{zid}@unsw.edu.au"
             db.set_member_data.assert_called_once()
             call_args = db.set_member_data.call_args.args
             assert call_args[0] == member.id
