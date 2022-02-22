@@ -360,7 +360,7 @@ async def state_await_zid(db, mail, member, member_data, zid):
         await member.send("Your zID must match the following format: "
             "`zXXXXXXX`. Please try again")
         return
-    email = f"{zid}@student.unsw.edu.au"
+    email = f"{zid}@unsw.edu.au"
 
     db.update_member_data(member.id, {
         MemberKey.ZID: zid,
@@ -453,7 +453,7 @@ async def proc_request_code(db, member):
         member: Member object to make request to.
     """
     await member.send("Please enter the code sent to your email. If you are a "
-        "UNSW student, this is your zID@student.unsw.edu.au email. Please "
+        "UNSW student, this is your zID@unsw.edu.au email. Please "
         "check your spam folder if you don't see it.\n"
         f"You can request another email by typing `{PREFIX}resend`.")
 
@@ -726,7 +726,7 @@ async def proc_verify_manual(db, ver_role, channel, join_announce_channel,
     if is_valid_zid(arg):
         member_data.update({
             MemberKey.ZID: arg, 
-            MemberKey.EMAIL: f"{arg}@student.unsw.edu.au"
+            MemberKey.EMAIL: f"{arg}@unsw.edu.au"
         })
     elif is_valid_email(arg):
         member_data.update({MemberKey.EMAIL: arg})
