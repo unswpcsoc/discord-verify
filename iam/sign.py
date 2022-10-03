@@ -25,6 +25,7 @@ SOFTWARE.
 
 from discord.ext import commands
 
+
 def setup(bot):
     """Add Sign cog to bot.
 
@@ -33,7 +34,9 @@ def setup(bot):
     """
     bot.add_cog(Sign(bot))
 
+
 class Sign(commands.Cog):
     """Currently unimplemented."""
+
     def __init__(self, bot):
         self.bot = bot

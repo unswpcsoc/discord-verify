@@ -2,9 +2,12 @@
 
 import yaml
 
+
 class ConfigFileNotFound(FileNotFoundError):
     """Config file does not exist."""
+
     pass
+
 
 CONFIG_DIR = "config"
 CONFIG_FILE = f"{CONFIG_DIR}/config.yml"
@@ -28,5 +31,7 @@ try:
     MAILCHIMP_API_KEY = config["mailchimp-api-key"]
     MAILCHIMP_LIST_ID = config["mailchimp-list-id"]
 except IOError as err:
-    raise ConfigFileNotFound("Can't find config file! Create a config.yml "
-        "file in the config directory with similar structure to default.yml.")
+    raise ConfigFileNotFound(
+        "Can't find config file! Create a config.yml "
+        "file in the config directory with similar structure to default.yml."
+    )
