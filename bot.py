@@ -5,16 +5,6 @@
 import sys
 import traceback
 from logging import INFO
-# from discord import Intents
-# from discord.ext.commands import (
-#     Bot,
-#     CommandNotFound,
-#     DisabledCommand,
-#     BadArgument,
-#     TooManyArguments,
-#     ArgumentParsingError,
-#     MissingRequiredArgument,
-# )
 
 import nextcord
 from nextcord.ext.commands import (
@@ -27,8 +17,19 @@ from nextcord.ext.commands import (
     MissingRequiredArgument,
 )
 
+from iam.config import BOT_TOKEN
 from iam.log import new_logger
-from iam.config import BOT_TOKEN, PREFIX
+
+# from discord import Intents
+# from discord.ext.commands import (
+#     Bot,
+#     CommandNotFound,
+#     DisabledCommand,
+#     BadArgument,
+#     TooManyArguments,
+#     ArgumentParsingError,
+#     MissingRequiredArgument,
+# )
 
 LOG = None
 INTENTS = nextcord.Intents.all()

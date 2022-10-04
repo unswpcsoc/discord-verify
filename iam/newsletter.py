@@ -1,14 +1,14 @@
 """Handle newsletter subscriptions for users."""
 
+from hashlib import md5
+
 import mailchimp_marketing as MailchimpMarketing
 from mailchimp_marketing.api_client import ApiClientError
-from hashlib import md5
 from nextcord.ext.commands import Cog, group
-# from discord.ext.commands import Cog, group
 
+from iam.config import MAILCHIMP_API_KEY, MAILCHIMP_LIST_ID
+from iam.core import show_help_single
 from iam.db import MemberKey
-from iam.log import new_logger
-from iam.config import PREFIX, MAILCHIMP_API_KEY, MAILCHIMP_LIST_ID
 from iam.hooks import (
     pre,
     post,
@@ -18,7 +18,9 @@ from iam.hooks import (
     log_success,
     verified_in_db,
 )
-from iam.core import show_help_single
+from iam.log import new_logger
+
+# from discord.ext.commands import Cog, group
 
 LOG = new_logger(__name__)
 """Logger for this module."""

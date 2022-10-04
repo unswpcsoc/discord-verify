@@ -1,15 +1,13 @@
 """Handle command permissions."""
 
-from logging import DEBUG, INFO
 from functools import wraps
 from inspect import iscoroutinefunction
+from logging import DEBUG, INFO
+
 # from discord import User, Member
 # from discord.ext.commands import Context
 from nextcord import User, Member
-import nextcord.ext.commands
 
-from iam.db import MemberKey, MemberNotFound
-from iam.log import log_func
 from iam.config import (
     PREFIX,
     SERVER_ID,
@@ -18,6 +16,8 @@ from iam.config import (
     ADMIN_CHANNEL,
     ADMIN_ROLES,
 )
+from iam.db import MemberKey, MemberNotFound
+from iam.log import log_func
 
 
 class CheckFailed(Exception):

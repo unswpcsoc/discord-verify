@@ -1,6 +1,5 @@
 """Handle core functions of the bot."""
 
-from inspect import getdoc
 # from discord.ext.commands import (
 #     Cog,
 #     Group,
@@ -20,9 +19,9 @@ from nextcord.ext.commands import (
     ArgumentParsingError
 )
 
-from iam.log import new_logger
 from iam.config import PREFIX, ADMIN_CHANNEL
 from iam.hooks import pre, post, log_invoke, log_success
+from iam.log import new_logger
 
 LOG = new_logger(__name__)
 """Logger for this module."""

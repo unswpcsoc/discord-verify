@@ -1,8 +1,9 @@
 """Handle creation of loggers."""
 
 import logging
-from time import time, localtime, strftime
 from collections import defaultdict
+from time import time, localtime, strftime
+
 # from discord import Message, Member, User
 # from discord.ext.commands import Context
 from nextcord import Message, Member, User

@@ -13,6 +13,7 @@ google-cloud = "*"
 mailchimp-marketing = {git = "https://github.com/mailchimp/mailchimp-marketing-python.git"}
 boto3 = "*"
 botocore = "*"
+pytest = "*"
 
 [requires]
 python_version = "3.7"

@@ -1,16 +1,17 @@
 """Handle database functions."""
 
-import firebase_admin
-from firebase_admin import credentials, firestore
-import google.cloud.exceptions
-from logging import DEBUG, INFO
-from time import time
 from secrets import token_bytes
+from time import time
+
+import firebase_admin
+import google.cloud.exceptions
+from firebase_admin import credentials, firestore
 from nextcord.ext.commands import Cog
-# from discord.ext.commands import Cog
 
 from iam.config import CONFIG_DIR, MAX_VER_EMAILS
 from iam.log import new_logger
+
+# from discord.ext.commands import Cog
 
 LOG = new_logger(__name__)
 """Logger for this module."""

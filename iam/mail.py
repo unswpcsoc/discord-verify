@@ -1,13 +1,14 @@
 """Handle email functions."""
 
+from re import search
+
 import boto3
 from botocore.exceptions import ClientError
 # from discord.ext.commands import Cog
 from nextcord.ext.commands import Cog
-from re import search
 
-from iam.log import new_logger
 from iam.config import EMAIL, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+from iam.log import new_logger
 
 LOG = new_logger(__name__)
 """Logger for this module."""

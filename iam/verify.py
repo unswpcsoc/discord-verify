@@ -1,27 +1,25 @@
 """Handle automatic verification of server members."""
 
+import hmac
 from enum import IntEnum
 from functools import wraps
-from time import time
+from logging import DEBUG
 from re import search
-import hmac
+from time import time
+
+from nextcord import Member, NotFound
 # from discord.ext.commands import Cog, group, command
 # from discord import Member, NotFound
 from nextcord.ext.commands import Cog, group, command
-from nextcord import  Member, NotFound
-from logging import DEBUG
 
-from iam.log import new_logger
-from iam.db import MemberKey, make_def_member_data, SecretID, MemberNotFound
-from iam.mail import MailError, is_valid_email
 from iam.config import (
     PREFIX,
     SERVER_ID,
     VERIF_ROLE,
     ADMIN_CHANNEL,
     JOIN_ANNOUNCE_CHANNEL,
-    MAX_VER_EMAILS,
 )
+from iam.db import MemberKey, make_def_member_data, SecretID, MemberNotFound
 from iam.hooks import (
     pre,
     post,
@@ -30,10 +28,8 @@ from iam.hooks import (
     log_attempt,
     log_invoke,
     log_success,
-    has_verified_role,
     was_verified_user,
     is_unverified_user,
-    never_verified_user,
     is_admin_user,
     is_guild_member,
     in_ver_channel,
@@ -42,6 +38,8 @@ from iam.hooks import (
     is_human,
     is_not_command,
 )
+from iam.log import new_logger
+from iam.mail import MailError, is_valid_email
 
 LOG = new_logger(__name__)
 """Logger for this module."""
@@ -296,7 +294,8 @@ async def proc_request_name(db, member):
         member: Member object to make request to.
     """
     await member.send(
-        "Arc - UNSW Student Life strongly recommends all student societies verify their members' identities before allowing them to interact with their online communities (Arc Clubs Handbook section 22.2)\n"
+        "Arc - UNSW Student Life strongly recommends all student societies verify their members' identities before "
+        "allowing them to interact with their online communities (Arc Clubs Handbook section 22.2)\n "
         "\n"
         "To send messages in our PCSoc Discord server, we require the following:\n"
         "(1) Your full name\n"
@@ -306,7 +305,8 @@ async def proc_request_name(db, member):
         "  (2b) If not, your email address\n"
         "  (3b) Your government-issued photo ID (e.g. driver's license or photo card).\n"
         "\n"
-        "The information you share with us is only accessible by our current executive team - we do not share this with any other parties. You may request to have your record deleted if you are no longer a member of PCSoc.\n"
+        "The information you share with us is only accessible by our current executive team - we do not share this "
+        "with any other parties. You may request to have your record deleted if you are no longer a member of PCSoc.\n "
         "If you have questions or you're stuck, feel free to message any of our executives :)\n"
         "-----\n"
         "(1) What is your full name as it appears on your government-issued ID?\n"
@@ -359,7 +359,7 @@ async def state_await_unsw(db, member, ans):
     If ans is "y", proceed to request zID.
     If ans is "n", proceed to request email address.
     If ans is neither, send error message.
-    ans is case insensitive.
+    ans is case-insensitive.
 
     Args:
         db: Database object.
@@ -843,7 +843,7 @@ async def proc_grant_rank(
 ):
     """Grant verified rank to member and notify them and execs.
 
-    Verified rank defined in cofig.
+    Verified rank defined in config.
 
     Args:
         ver_role: Verified role object to grant to member.

@@ -1,9 +1,16 @@
 """Test the iam.verify module."""
 
-import pytest
 from time import time
 from unittest.mock import patch, AsyncMock, MagicMock
-from discord import NotFound
+
+import pytest
+# from discord import NotFound
+from nextcord import NotFound
+
+from iam.config import PREFIX
+from iam.db import MemberKey, MemberNotFound, make_def_member_data, MAX_VER_EMAILS
+from iam.hooks import CheckFailed
+from iam.mail import MailError
 from iam.verify import (
     State,
     proc_begin,
@@ -24,11 +31,8 @@ from iam.verify import (
     proc_verify_manual,
     proc_grant_rank,
 )
-from iam.db import MemberKey, MemberNotFound, make_def_member_data, MAX_VER_EMAILS
-from iam.hooks import CheckFailed
-from iam.mail import MailError
-from iam.config import PREFIX, VERIF_ROLE
-import discord
+
+# import discord
 
 VALID_NAMES = ["Sabine Lim", "Test User", "kek", "", "X Æ A-12"]
 VALID_ZIDS = ["z5555555", "z1234567", "z0000000", "z5242579"]
