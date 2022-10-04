@@ -8,6 +8,11 @@ verify_ssl = true
 [packages]
 pyyaml = "*"
 nextcord = "*"
+firebase-admin = "*"
+google-cloud = "*"
+mailchimp-marketing = {git = "https://github.com/mailchimp/mailchimp-marketing-python.git"}
+boto3 = "*"
+botocore = "*"
 
 [requires]
 python_version = "3.7"

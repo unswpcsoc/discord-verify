@@ -6,7 +6,8 @@ import google.cloud.exceptions
 from logging import DEBUG, INFO
 from time import time
 from secrets import token_bytes
-from discord.ext.commands import Cog
+from nextcord.ext.commands import Cog
+# from discord.ext.commands import Cog
 
 from iam.config import CONFIG_DIR, MAX_VER_EMAILS
 from iam.log import new_logger

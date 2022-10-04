@@ -1,9 +1,10 @@
 """Handle newsletter subscriptions for users."""
 
-from mailchimp_marketing import Client
+import mailchimp_marketing as MailchimpMarketing
 from mailchimp_marketing.api_client import ApiClientError
 from hashlib import md5
-from discord.ext.commands import Cog, group
+from nextcord.ext.commands import Cog, group
+# from discord.ext.commands import Cog, group
 
 from iam.db import MemberKey
 from iam.log import new_logger
@@ -204,7 +205,7 @@ class Newsletter(Cog, name=COG_NAME):
             logger: Logger for this cog.
         """
         self.bot = bot
-        self.client = client = Client({"api_key": api_key})
+        self.client = client = MailchimpMarketing.Client({"api_key": api_key})
         self.list_id = list_id
         self.logger = logger
 

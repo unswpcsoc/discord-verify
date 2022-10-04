@@ -3,8 +3,10 @@
 from logging import DEBUG, INFO
 from functools import wraps
 from inspect import iscoroutinefunction
-from discord import User, Member
-from discord.ext.commands import Context
+# from discord import User, Member
+# from discord.ext.commands import Context
+from nextcord import User, Member
+import nextcord.ext.commands
 
 from iam.db import MemberKey, MemberNotFound
 from iam.log import log_func

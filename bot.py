@@ -5,8 +5,19 @@
 import sys
 import traceback
 from logging import INFO
-from discord import Intents
-from discord.ext.commands import (
+# from discord import Intents
+# from discord.ext.commands import (
+#     Bot,
+#     CommandNotFound,
+#     DisabledCommand,
+#     BadArgument,
+#     TooManyArguments,
+#     ArgumentParsingError,
+#     MissingRequiredArgument,
+# )
+
+import nextcord
+from nextcord.ext.commands import (
     Bot,
     CommandNotFound,
     DisabledCommand,
@@ -16,14 +27,11 @@ from discord.ext.commands import (
     MissingRequiredArgument,
 )
 
-import nextcord
-from nextcord.ext import commands, application_checks
-
 from iam.log import new_logger
 from iam.config import BOT_TOKEN, PREFIX
 
 LOG = None
-INTENTS = Intents.all()
+INTENTS = nextcord.Intents.all()
 
 
 def main():
@@ -32,11 +40,11 @@ def main():
     LOG = new_logger(__name__)
     sys.excepthook = exception_handler
 
-    bot = commands.Bot(intents=INTENTS)
+    bot = Bot(intents=INTENTS)
 
-    BOT = Bot(command_prefix=PREFIX, intents=INTENTS)
+    # BOT = Bot(command_prefix=PREFIX, intents=INTENTS)
 
-    @BOT.event
+    @bot.event
     async def on_error(event, *args, **kwargs):
         """Handle exceptions raised by events/commands.
 
@@ -52,7 +60,7 @@ def main():
         err = sys.exc_info()[1]
         LOG.error(f"Ignoring exception in {event}\n{traceback.format_exc()}")
 
-    @BOT.event
+    @bot.event
     async def on_command_error(ctx, error):
         """Handle exceptions raised by commands.
 
@@ -85,22 +93,22 @@ def main():
                 return
             raise error.original
 
-        if hasattr(err, "notify") and callable(err.notify):
-            await err.notify()
+        if hasattr(error.original, "notify") and callable(error.original.notify):
+            await error.original.notify()
             return
 
         await ctx.send("Oops! I encountered a problem. Please contact an " "admin.")
 
         raise error
 
-    BOT.load_extension("iam.db")
-    BOT.load_extension("iam.core")
-    BOT.load_extension("iam.mail")
-    BOT.load_extension("iam.verify")
-    BOT.load_extension("iam.sign")
-    BOT.load_extension("iam.newsletter")
+    bot.load_extension("iam.db")
+    bot.load_extension("iam.core")
+    bot.load_extension("iam.mail")
+    bot.load_extension("iam.verify")
+    bot.load_extension("iam.sign")
+    bot.load_extension("iam.newsletter")
 
-    BOT.run(BOT_TOKEN)
+    bot.run(BOT_TOKEN)
 
 
 def exception_handler(type, value, traceback):

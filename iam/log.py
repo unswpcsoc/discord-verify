@@ -3,8 +3,10 @@
 import logging
 from time import time, localtime, strftime
 from collections import defaultdict
-from discord import Message, Member, User
-from discord.ext.commands import Context
+# from discord import Message, Member, User
+# from discord.ext.commands import Context
+from nextcord import Message, Member, User
+from nextcord.ext.commands import Context
 
 CONSOLE_LOG_FMT = "[%(asctime)s] [%(module)s/%(levelname)s]: %(message)s"
 """Console logging format."""

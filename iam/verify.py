@@ -5,8 +5,10 @@ from functools import wraps
 from time import time
 from re import search
 import hmac
-from discord.ext.commands import Cog, group, command
-from discord import Member, NotFound
+# from discord.ext.commands import Cog, group, command
+# from discord import Member, NotFound
+from nextcord.ext.commands import Cog, group, command
+from nextcord import  Member, NotFound
 from logging import DEBUG
 
 from iam.log import new_logger

@@ -23,7 +23,7 @@ SOFTWARE.
 
 """Currently unimplemented."""
 
-from discord.ext import commands
+from nextcord.ext import commands
 
 
 def setup(bot):

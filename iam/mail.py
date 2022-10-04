@@ -2,7 +2,8 @@
 
 import boto3
 from botocore.exceptions import ClientError
-from discord.ext.commands import Cog
+# from discord.ext.commands import Cog
+from nextcord.ext.commands import Cog
 from re import search
 
 from iam.log import new_logger
