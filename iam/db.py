@@ -1,15 +1,17 @@
 """Handle database functions."""
 
-import firebase_admin
-from firebase_admin import credentials, firestore
-import google.cloud.exceptions
-from logging import DEBUG, INFO
-from time import time
 from secrets import token_bytes
-from discord.ext.commands import Cog
+from time import time
+
+import firebase_admin
+import google.cloud.exceptions
+from firebase_admin import credentials, firestore
+from nextcord.ext.commands import Cog
 
 from iam.config import CONFIG_DIR, MAX_VER_EMAILS
 from iam.log import new_logger
+
+# from discord.ext.commands import Cog
 
 LOG = new_logger(__name__)
 """Logger for this module."""
@@ -26,6 +28,7 @@ COL_MEMBERS = "members"
 COL_SECRETS = "secrets"
 """Name of secrets collection in database"""
 
+
 def setup(bot):
     """Add Database cog to bot and set up logging.
 
@@ -37,6 +40,7 @@ def setup(bot):
     LOG.debug(f"Initialised {COG_NAME} cog")
     bot.add_cog(cog)
     LOG.debug(f"Added {COG_NAME} cog to bot")
+
 
 def teardown(bot):
     """Remove Database cog from this bot and remove logging.
@@ -50,6 +54,7 @@ def teardown(bot):
     for handler in LOG.handlers:
         LOG.removeHandler(handler)
 
+
 class MemberNotFound(Exception):
     """Member not found in database.
 
@@ -58,6 +63,7 @@ class MemberNotFound(Exception):
         context: String containing any additional context related to this
                     exception being thrown.
     """
+
     def __init__(self, member_id, context):
         """Init exception with given args.
 
@@ -74,11 +80,15 @@ class MemberNotFound(Exception):
 
         Log an error message containing relevant context.
         """
-        LOG.error(f"Member '{self.member_id}' could not be found in database! "
-            f"Context: '{self.context}'")
+        LOG.error(
+            f"Member '{self.member_id}' could not be found in database! "
+            f"Context: '{self.context}'"
+        )
+
 
 class MemberKey:
     """Keys for member entries in database."""
+
     NAME = "full_name"
     ZID = "zid"
     EMAIL = "email"
@@ -90,6 +100,7 @@ class MemberKey:
     VER_TIME = "_verify_timestamp"
     EMAIL_ATTEMPTS = "_email_verify_attempts"
     MAX_EMAIL_ATTEMPTS = "_max_email_verify_attempts"
+
 
 def make_def_member_data():
     return {
@@ -103,12 +114,15 @@ def make_def_member_data():
         MemberKey.VER_STATE: None,
         MemberKey.VER_TIME: time(),
         MemberKey.EMAIL_ATTEMPTS: 0,
-        MemberKey.MAX_EMAIL_ATTEMPTS: MAX_VER_EMAILS
+        MemberKey.MAX_EMAIL_ATTEMPTS: MAX_VER_EMAILS,
     }
+
 
 class SecretID:
     """Names for secret entries in database."""
+
     VERIFY = "verify"
+
 
 class Database(Cog):
     """Handle database functions.
@@ -116,6 +130,7 @@ class Database(Cog):
     Attributes:
         db: Connected Firestore Client.
     """
+
     def __init__(self, certificate_file, logger):
         """Init cog and connect to Firestore."""
         LOG.debug(f"Initialising {COG_NAME} cog...")
@@ -147,8 +162,7 @@ class Database(Cog):
             with that member.
         """
         unverified = {}
-        docs = self._get_members_col() \
-            .where(MemberKey.ID_VER, "==", False).stream()
+        docs = self._get_members_col().where(MemberKey.ID_VER, "==", False).stream()
         for doc in docs:
             member_id = int(doc.id)
             member_data = doc.to_dict()
@@ -187,8 +201,10 @@ class Database(Cog):
         try:
             self._get_member_doc(id).update(patch)
         except google.cloud.exceptions.NotFound:
-            LOG.warning(f"Failed to update member '{id}' entry in database - "
-                "they do not exist")
+            LOG.warning(
+                f"Failed to update member '{id}' entry in database - "
+                "they do not exist"
+            )
             raise MemberNotFound(id, "update_member_data")
 
     def delete_member_data(self, id, must_exist=True):
@@ -207,8 +223,9 @@ class Database(Cog):
         """
         doc = self._get_member_doc(id)
         if must_exist and doc.get().to_dict() is None:
-            LOG.warning(f"Failed to delete member '{id}' in database - "
-                "they do not exist")
+            LOG.warning(
+                f"Failed to delete member '{id}' in database - " "they do not exist"
+            )
             raise MemberNotFound(id, "delete_member_data")
         doc.delete()
 
@@ -225,7 +242,7 @@ class Database(Cog):
         """
         doc = self._get_secrets_col().document(str(id))
         data = doc.get().to_dict()
-        
+
         if data is not None:
             secret = data["secret"]
         else:
@@ -233,9 +250,9 @@ class Database(Cog):
             secret = token_bytes(64)
             doc.set({"secret": secret})
             LOG.info(f"Saved new '{id}' secret in Firebase")
-        
+
         return secret
-    
+
     def _get_member_doc(self, id):
         """Retrieve member doc from database.
 
@@ -254,7 +271,7 @@ class Database(Cog):
             Firestore collection of members.
         """
         return self.db.collection(COL_MEMBERS)
-    
+
     def _get_secrets_col(self):
         """Get secrets collection.
 
@@ -262,6 +279,7 @@ class Database(Cog):
             Firestore collection of secrets.
         """
         return self.db.collection(COL_SECRETS)
+
 
 def firestore_connect(certificate_file):
     """Connect to Firestore.

@@ -6,8 +6,14 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
-discord-py = "*"
 pyyaml = "*"
+nextcord = "*"
+firebase-admin = "*"
+google-cloud = "*"
+mailchimp-marketing = {git = "https://github.com/mailchimp/mailchimp-marketing-python.git"}
+boto3 = "*"
+botocore = "*"
+pytest = "*"
 
 [requires]
 python_version = "3.7"

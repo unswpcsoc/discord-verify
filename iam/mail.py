@@ -1,14 +1,14 @@
 """Handle email functions."""
 
-import boto3
-from botocore.exceptions import ClientError
-from discord.ext.commands import Cog
 from re import search
 
+import boto3
+from botocore.exceptions import ClientError
+# from discord.ext.commands import Cog
+from nextcord.ext.commands import Cog
+
+from iam.config import EMAIL, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 from iam.log import new_logger
-from iam.config import (
-    EMAIL, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-)
 
 LOG = new_logger(__name__)
 """Logger for this module."""
@@ -18,6 +18,7 @@ COG_NAME = "Mail"
 
 EMAIL_REGEX = r"^([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)$"
 """Any string that matches this regex is a valid email."""
+
 
 def setup(bot):
     """Add Mail cog to bot and set up logging.
@@ -31,6 +32,7 @@ def setup(bot):
     bot.add_cog(cog)
     LOG.debug(f"Added {COG_NAME} cog to bot")
 
+
 def teardown(bot):
     LOG.debug(f"Tearing down {__name__} extension")
     """Remove Mail cog from bot and remove logging."""
@@ -39,12 +41,14 @@ def teardown(bot):
     for handler in LOG.handlers:
         LOG.removeHandler(handler)
 
+
 class MailError(Exception):
     """Email failed to send.
     
     Attributes:
         recipient: String representing recipient email address.
     """
+
     def __init__(self, recipient):
         """Init exception with given message.
 
@@ -60,6 +64,7 @@ class MailError(Exception):
         """
         LOG.error(f"Email for recipient '{self.recipient}' failed to send")
 
+
 def is_valid_email(email):
     """Returns whether given string is a valid email.
 
@@ -70,6 +75,7 @@ def is_valid_email(email):
         Boolean value representing whether string is a valid email.
     """
     return search(EMAIL_REGEX, email) is not None
+
 
 class Mail(Cog, name=COG_NAME):
     """Handle email functions"""
@@ -96,23 +102,15 @@ class Mail(Cog, name=COG_NAME):
             response = self.client.send_email(
                 Destination={"ToAddresses": [recipient]},
                 Message={
-                    "Body": {
-                        "Text": {
-                            "Charset": "UTF-8",
-                            "Data": body_text
-                        }
-                    },
-                    "Subject": {
-                        "Charset": "UTF-8",
-                        "Data": subject
-                    }
+                    "Body": {"Text": {"Charset": "UTF-8", "Data": body_text}},
+                    "Subject": {"Charset": "UTF-8", "Data": subject},
                 },
-                Source=EMAIL
+                Source=EMAIL,
             )
-            LOG.info(f"SES email '{response['MessageId']}' "
-                f"sent to '{recipient}'")
+            LOG.info(f"SES email '{response['MessageId']}' " f"sent to '{recipient}'")
         except ClientError:
             raise MailError(recipient)
+
 
 def connect():
     """Connect to Amazon SES.
@@ -121,10 +119,10 @@ def connect():
     """
     LOG.debug("Logging in to Amazon SES...")
     client = boto3.client(
-        'ses',
+        "ses",
         region_name=AWS_REGION,
         aws_access_key_id=AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     )
     LOG.info("Logged in to Amazon SES")
     return client

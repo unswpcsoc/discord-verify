@@ -1,37 +1,57 @@
 """Test the iam.verify module."""
 
-import pytest
 from time import time
 from unittest.mock import patch, AsyncMock, MagicMock
-from discord import NotFound
-from iam.verify import (
-    State, proc_begin, proc_restart, state_await_name, state_await_unsw,
-    state_await_zid, state_await_email, proc_send_email, state_await_code,
-    proc_resend_email, state_await_id, proc_forward_id_admins,
-    proc_exec_approve, proc_exec_reject, proc_resend_id, proc_display_pending,
-    proc_verify_manual, proc_grant_rank
-)
-from iam.db import (
-    MemberKey, MemberNotFound, make_def_member_data, MAX_VER_EMAILS
-)
+
+import pytest
+# from discord import NotFound
+from nextcord import NotFound
+
+from iam.config import PREFIX
+from iam.db import MemberKey, MemberNotFound, make_def_member_data, MAX_VER_EMAILS
 from iam.hooks import CheckFailed
 from iam.mail import MailError
-from iam.config import PREFIX, VERIF_ROLE
-import discord
+from iam.verify import (
+    State,
+    proc_begin,
+    proc_restart,
+    state_await_name,
+    state_await_unsw,
+    state_await_zid,
+    state_await_email,
+    proc_send_email,
+    state_await_code,
+    proc_resend_email,
+    state_await_id,
+    proc_forward_id_admins,
+    proc_exec_approve,
+    proc_exec_reject,
+    proc_resend_id,
+    proc_display_pending,
+    proc_verify_manual,
+    proc_grant_rank,
+)
+
+# import discord
 
 VALID_NAMES = ["Sabine Lim", "Test User", "kek", "", "X Æ A-12"]
 VALID_ZIDS = ["z5555555", "z1234567", "z0000000", "z5242579"]
 INVALID_ZIDS = ["5555555", "z12345678", "z0", "5242579z"]
 VALID_EMAILS = [
-    "thesabinelim@gmail.com", "arcdelegate@unswpcsoc.com",
-    "sabine.lim@unsw.edu.au", "z5242579@student.unsw.edu.au", "g@g.gg"
+    "thesabinelim@gmail.com",
+    "arcdelegate@unswpcsoc.com",
+    "sabine.lim@unsw.edu.au",
+    "z5242579@student.unsw.edu.au",
+    "g@g.gg",
 ]
 INVALID_EMAILS = ["a@a", "google.com", "email", "", "@gmail.com", "hi@"]
 SAMPLE_CODES = ["cf137a", "000000", "hello_world"]
 SAMPLE_REJECT_REASONS = ["photo unclear", "", "u suck", "invalid", "123456"]
 
+
 def filter_dict(dict, except_keys):
-    return {k:v for k,v in dict.items() if k not in except_keys}
+    return {k: v for k, v in dict.items() if k not in except_keys}
+
 
 def new_mock_user(id):
     user = AsyncMock()
@@ -40,10 +60,12 @@ def new_mock_user(id):
     user.typing = MagicMock()
     return user
 
+
 def new_mock_guild(id):
     guild = AsyncMock()
     guild.id = id
     return guild
+
 
 def new_mock_channel(id):
     channel = AsyncMock()
@@ -51,16 +73,19 @@ def new_mock_channel(id):
     channel.typing = MagicMock()
     return channel
 
+
 def new_mock_message(id, attachments=[]):
     message = AsyncMock()
     message.id = id
     message.attachments = attachments
     return message
 
+
 def new_mock_attachment(id):
     attachment = AsyncMock()
     attachment.to_file.return_value = id
     return attachment
+
 
 @pytest.mark.asyncio
 async def test_proc_begin_standard():
@@ -80,37 +105,44 @@ async def test_proc_begin_standard():
     db.set_member_data.assert_called_once()
     call_args = db.set_member_data.call_args.args
     assert call_args[0] == member.id
-    assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == \
-        filter_dict(make_def_member_data(), [MemberKey.VER_TIME])
-    assert call_args[1][MemberKey.VER_TIME] >= before_time and \
-        call_args[1][MemberKey.VER_TIME] <= time()
+    assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == filter_dict(
+        make_def_member_data(), [MemberKey.VER_TIME]
+    )
+    assert before_time <= call_args[1][MemberKey.VER_TIME] <= time()
 
     # Ensure user was sent prompts.
-    invoke_message.reply.assert_awaited_once_with("Please check your DMs for a "
-        "message from me.")
-    member.send.assert_awaited_once_with("Arc - UNSW Student Life strongly recommends all student societies verify their members' identities before allowing them to interact with their online communities (Arc Clubs Handbook section 22.2)\n"
-                      "\n"
-                      "To send messages in our PCSoc Discord server, we require the following:\n"
-                      "(1) Your full name\n"
-                      "(2) Whether or not you're a student at UNSW\n"
-                      "  (2a) If yes, your UNSW-issued zID\n"
-                      "\n"
-                      "  (2b) If not, your email address\n"
-                      "  (3b) Your government-issued photo ID (e.g. driver's license or photo card).\n"
-                      "\n"
-                      "The information you share with us is only accessible by our current executive team - we do not share this with any other parties. You may request to have your record deleted if you are no longer a member of PCSoc.\n"
-                      "If you have questions or you're stuck, feel free to message any of our executives :)\n"
-                      "-----\n"
-                      "(1) What is your full name as it appears on your government-issued ID?\n"
-                      "You can restart this verification process "
-                     f"at any time by typing `{PREFIX}restart`.")
+    invoke_message.reply.assert_awaited_once_with(
+        "Please check your DMs for a " "message from me."
+    )
+    member.send.assert_awaited_once_with(
+        "Arc - UNSW Student Life strongly recommends all student societies verify their members' identities before "
+        "allowing them to interact with their online communities (Arc Clubs Handbook section 22.2)\n "
+        "\n"
+        "To send messages in our PCSoc Discord server, we require the following:\n"
+        "(1) Your full name\n"
+        "(2) Whether or not you're a student at UNSW\n"
+        "  (2a) If yes, your UNSW-issued zID\n"
+        "\n"
+        "  (2b) If not, your email address\n"
+        "  (3b) Your government-issued photo ID (e.g. driver's license or photo card).\n"
+        "\n"
+        "The information you share with us is only accessible by our current executive team - we do not share this "
+        "with any other parties. You may request to have your record deleted if you are no longer a member of PCSoc.\n "
+        "If you have questions or you're stuck, feel free to message any of our executives :)\n"
+        "-----\n"
+        "(1) What is your full name as it appears on your government-issued ID?\n"
+        "You can restart this verification process "
+        f"at any time by typing `{PREFIX}restart`."
+    )
 
     # Ensure user state updated to awaiting name.
-    db.update_member_data.assert_called_once_with(member.id,
-        {MemberKey.VER_STATE: State.AWAIT_NAME})
+    db.update_member_data.assert_called_once_with(
+        member.id, {MemberKey.VER_STATE: State.AWAIT_NAME}
+    )
 
     # Ensure no side effects occurred.
     member.add_roles.assert_not_awaited()
+
 
 @pytest.mark.asyncio
 async def test_proc_begin_already_verifying():
@@ -130,13 +162,16 @@ async def test_proc_begin_already_verifying():
         db.get_member_data.assert_called_once_with(member.id)
 
         # Ensure user was sent error.
-        member.send.assert_awaited_once_with("You are already undergoing the "
-            f"verification process. To restart, type `{PREFIX}restart`.")
+        member.send.assert_awaited_once_with(
+            "You are already undergoing the "
+            f"verification process. To restart, type `{PREFIX}restart`."
+        )
 
         # Ensure no side effects occurred.
         member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_begin_already_verified():
@@ -162,18 +197,23 @@ async def test_proc_begin_already_verified():
         member.add_roles.assert_awaited_once_with(ver_role)
 
         # Ensure user was sent confirmation.
-        member.send.assert_awaited_once_with("Our records show you were "
+        member.send.assert_awaited_once_with(
+            "Our records show you were "
             "verified in the past. You have been granted the rank once again. "
-            "Welcome back to the server!")
+            "Welcome back to the server!"
+        )
 
         # Ensure admin channel was sent confirmation.
-        admin_channel.send.assert_awaited_once_with(f"{member.mention} was "
+        admin_channel.send.assert_awaited_once_with(
+            f"{member.mention} was "
             "previously verified, and has been given the verified rank again "
-            "through request.")
+            "through request."
+        )
 
         # Ensure no side effects occurred.
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_restart_standard():
@@ -198,36 +238,43 @@ async def test_proc_restart_standard():
         assert len(call_args_list) == 2
         call_args = call_args_list[0].args
         assert call_args[0] == user.id
-        assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == \
-            {MemberKey.VER_STATE: None}
-        assert call_args[1][MemberKey.VER_TIME] >= before_time and \
-            call_args[1][MemberKey.VER_TIME] < time()
+        assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == {
+            MemberKey.VER_STATE: None
+        }
+        assert before_time <= call_args[1][MemberKey.VER_TIME] < time()
 
         # Ensure user was sent prompt.
-        user.send.assert_awaited_once_with("Arc - UNSW Student Life strongly recommends all student societies verify their members' identities before allowing them to interact with their online communities (Arc Clubs Handbook section 22.2)\n"
-                      "\n"
-                      "To send messages in our PCSoc Discord server, we require the following:\n"
-                      "(1) Your full name\n"
-                      "(2) Whether or not you're a student at UNSW\n"
-                      "  (2a) If yes, your UNSW-issued zID\n"
-                      "\n"
-                      "  (2b) If not, your email address\n"
-                      "  (3b) Your government-issued photo ID (e.g. driver's license or photo card).\n"
-                      "\n"
-                      "The information you share with us is only accessible by our current executive team - we do not share this with any other parties. You may request to have your record deleted if you are no longer a member of PCSoc.\n"
-                      "If you have questions or you're stuck, feel free to message any of our executives :)\n"
-                      "-----\n"
-                      "(1) What is your full name as it appears on your government-issued ID?\n"
-                      "You can restart this verification process "
-                     f"at any time by typing `{PREFIX}restart`.")
+        user.send.assert_awaited_once_with(
+            "Arc - UNSW Student Life strongly recommends all student societies verify their members' identities "
+            "before allowing them to interact with their online communities (Arc Clubs Handbook section 22.2)\n "
+            "\n"
+            "To send messages in our PCSoc Discord server, we require the following:\n"
+            "(1) Your full name\n"
+            "(2) Whether or not you're a student at UNSW\n"
+            "  (2a) If yes, your UNSW-issued zID\n"
+            "\n"
+            "  (2b) If not, your email address\n"
+            "  (3b) Your government-issued photo ID (e.g. driver's license or photo card).\n"
+            "\n"
+            "The information you share with us is only accessible by our current executive team - we do not share "
+            "this with any other parties. You may request to have your record deleted if you are no longer a member "
+            "of PCSoc.\n "
+            "If you have questions or you're stuck, feel free to message any of our executives :)\n"
+            "-----\n"
+            "(1) What is your full name as it appears on your government-issued ID?\n"
+            "You can restart this verification process "
+            f"at any time by typing `{PREFIX}restart`."
+        )
 
         # Ensure user state updated to awaiting name.
-        db.update_member_data.assert_called_with(user.id,
-            {MemberKey.VER_STATE: State.AWAIT_NAME})
+        db.update_member_data.assert_called_with(
+            user.id, {MemberKey.VER_STATE: State.AWAIT_NAME}
+        )
 
         # Ensure no side effects occurred.
         user.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_restart_never_verifying():
@@ -251,6 +298,7 @@ async def test_proc_restart_never_verifying():
     db.set_member_data.assert_not_called()
     db.update_member_data.assert_not_called()
 
+
 @pytest.mark.asyncio
 async def test_proc_restart_not_verifying():
     """User not undergoing verification sent error."""
@@ -272,6 +320,7 @@ async def test_proc_restart_not_verifying():
     user.add_roles.assert_not_awaited()
     db.set_member_data.assert_not_called()
     db.update_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_restart_already_verified():
@@ -299,6 +348,7 @@ async def test_proc_restart_already_verified():
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
 
+
 @pytest.mark.asyncio
 async def test_state_await_name_standard():
     """User sending valid name moves on to UNSW student question."""
@@ -317,7 +367,9 @@ async def test_state_await_name_standard():
     assert call_args == (member.id, {MemberKey.NAME: full_name})
 
     # Ensure user was sent prompt.
-    member.send.assert_awaited_once_with("(2) Are you a UNSW student? Please type `y` or `n`.")
+    member.send.assert_awaited_once_with(
+        "(2) Are you a UNSW student? Please type `y` or `n`."
+    )
 
     # Ensure user state updated to awaiting is UNSW.
     call_args = call_args_list[1].args
@@ -326,6 +378,7 @@ async def test_state_await_name_standard():
     # Ensure no side effects occurred.
     member.add_roles.assert_not_awaited()
     db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_state_await_name_too_long():
@@ -339,13 +392,15 @@ async def test_state_await_name_too_long():
     await state_await_name(db, member, full_name)
 
     # Ensure user was sent error.
-    member.send.assert_awaited_once_with(f"Name must be 500 characters or "
-        "fewer. Please try again.")
+    member.send.assert_awaited_once_with(
+        f"Name must be 500 characters or " "fewer. Please try again."
+    )
 
     # Ensure no side effects occurred.
     member.add_roles.assert_not_awaited()
     db.set_member_data.assert_not_called()
     db.update_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_state_await_unsw_yes():
@@ -362,12 +417,14 @@ async def test_state_await_unsw_yes():
         member.send.awaited_once_with("(2a) What is your zID?")
 
         # Ensure user state updated to awaiting zID.
-        db.update_member_data.assert_called_once_with(member.id,
-            {MemberKey.VER_STATE: State.AWAIT_ZID})
+        db.update_member_data.assert_called_once_with(
+            member.id, {MemberKey.VER_STATE: State.AWAIT_ZID}
+        )
 
         # Ensure no side effects occurred.
         member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_state_await_unsw_no():
@@ -384,12 +441,14 @@ async def test_state_await_unsw_no():
         member.send.awaited_once_with("(2b) What is your email address?")
 
         # Ensure user state updated to awaiting email.
-        db.update_member_data.assert_called_once_with(member.id,
-            {MemberKey.VER_STATE: State.AWAIT_EMAIL})
+        db.update_member_data.assert_called_once_with(
+            member.id, {MemberKey.VER_STATE: State.AWAIT_EMAIL}
+        )
 
         # Ensure no side effects occurred.
         member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_state_await_unsw_unrecognised():
@@ -410,6 +469,7 @@ async def test_state_await_unsw_unrecognised():
     db.set_member_data.assert_not_called()
     db.update_member_data.assert_not_called()
 
+
 @pytest.mark.asyncio
 async def test_state_await_zid_standard():
     """User sending valid zID moves on to proc_send_email."""
@@ -426,19 +486,20 @@ async def test_state_await_zid_standard():
             await state_await_zid(db, mail, member, member_data, zid)
 
         # Ensure user entry in database updated accordingly.
-        db.update_member_data.assert_called_once_with(member.id, {
-            MemberKey.ZID: zid,
-            MemberKey.EMAIL: email
-        })
+        db.update_member_data.assert_called_once_with(
+            member.id, {MemberKey.ZID: zid, MemberKey.EMAIL: email}
+        )
 
         # Ensure proc_send_email called.
-        mock_proc_send_email.assert_awaited_once_with(db, mail, member, 
-            member_data, email)
+        mock_proc_send_email.assert_awaited_once_with(
+            db, mail, member, member_data, email
+        )
 
         # Ensure no side effects occurred.
         member.send.assert_not_awaited()
         member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_state_await_zid_invalid():
@@ -456,14 +517,16 @@ async def test_state_await_zid_invalid():
             await state_await_zid(db, mail, member, member_data, zid)
 
         # Ensure user was sent error.
-        member.send.assert_awaited_once_with("Your zID must match the "
-            "following format: `zXXXXXXX`. Please try again")
+        member.send.assert_awaited_once_with(
+            "Your zID must match the " "following format: `zXXXXXXX`. Please try again"
+        )
 
         # Ensure no side effects occurred.
         mock_proc_send_email.assert_not_called()
         member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_state_await_email_standard():
@@ -480,18 +543,20 @@ async def test_state_await_email_standard():
             await state_await_email(db, mail, member, member_data, email)
 
         # Ensure user entry in database updated accordingly.
-        db.update_member_data.assert_called_once_with(member.id, {
-            MemberKey.EMAIL: email
-        })
+        db.update_member_data.assert_called_once_with(
+            member.id, {MemberKey.EMAIL: email}
+        )
 
         # Ensure proc_send_email called.
-        mock_proc_send_email.assert_awaited_once_with(db, mail, member, 
-            member_data, email)
+        mock_proc_send_email.assert_awaited_once_with(
+            db, mail, member, member_data, email
+        )
 
         # Ensure no side effects occurred.
         member.send.assert_not_awaited()
         member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_state_await_email_invalid():
@@ -508,14 +573,16 @@ async def test_state_await_email_invalid():
             await state_await_email(db, mail, member, member_data, email)
 
         # Ensure user was sent error.
-        member.send.assert_awaited_once_with("That is not a valid email "
-            "address. Please try again.")
+        member.send.assert_awaited_once_with(
+            "That is not a valid email " "address. Please try again."
+        )
 
         # Ensure no side effects occurred.
         mock_proc_send_email.assert_not_called()
         member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_send_email_standard():
@@ -534,31 +601,34 @@ async def test_proc_send_email_standard():
             await proc_send_email(db, mail, member, member_data, email)
 
         # Ensure user was sent email.
-        mail.send_email.assert_called_once_with(email, 
-            "PCSoc Discord Verification", f"Your code is {code}")
+        mail.send_email.assert_called_once_with(
+            email, "PCSoc Discord Verification", f"Your code is {code}"
+        )
 
         # Ensure user entry in database updated accordingly.
         call_args_list = db.update_member_data.call_args_list
         assert len(call_args_list) == 2
         call_args = call_args_list[0].args
-        assert call_args == (member.id, {
-            MemberKey.EMAIL_ATTEMPTS: member_data[MemberKey.EMAIL_ATTEMPTS] + 1
-        })
+        assert call_args == (
+            member.id,
+            {MemberKey.EMAIL_ATTEMPTS: member_data[MemberKey.EMAIL_ATTEMPTS] + 1},
+        )
 
         # Ensure user was sent prompt.
-        member.send.assert_awaited_once_with("Please enter the code sent to "
+        member.send.assert_awaited_once_with(
+            "Please enter the code sent to "
             "your email (check your spam folder if you don't see it).\n"
-            f"You can request another email by typing `{PREFIX}resend`.")
+            f"You can request another email by typing `{PREFIX}resend`."
+        )
 
         # Ensure user state updated to awaiting code.
         call_args = call_args_list[1].args
-        assert call_args == (member.id, {
-            MemberKey.VER_STATE: State.AWAIT_CODE
-        })
+        assert call_args == (member.id, {MemberKey.VER_STATE: State.AWAIT_CODE})
 
         # Ensure no side effects occurred.
         member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_send_email_out_of_attempts():
@@ -575,8 +645,10 @@ async def test_proc_send_email_out_of_attempts():
         await proc_send_email(db, mail, member, member_data, email)
 
         # Ensure user was sent error.
-        member.send.assert_awaited_once_with("You have requested too many "
-            "emails. Please DM an exec to continue verification.")
+        member.send.assert_awaited_once_with(
+            "You have requested too many "
+            "emails. Please DM an exec to continue verification."
+        )
 
         # Ensure user not sent email.
         mail.send_email.assert_not_called()
@@ -585,6 +657,7 @@ async def test_proc_send_email_out_of_attempts():
         member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_send_email_failed():
@@ -604,18 +677,22 @@ async def test_proc_send_email_failed():
             await proc_send_email(db, mail, member, member_data, email)
 
         # Ensure email sending attempted.
-        mail.send_email.assert_called_once_with(email, 
-            "PCSoc Discord Verification", f"Your code is {code}")
+        mail.send_email.assert_called_once_with(
+            email, "PCSoc Discord Verification", f"Your code is {code}"
+        )
 
         # Ensure user was sent error.
-        member.send.assert_awaited_once_with("Oops! Something went wrong "
+        member.send.assert_awaited_once_with(
+            "Oops! Something went wrong "
             "while attempting to send you an email. Please ensure that your "
-            "details have been entered correctly.")
+            "details have been entered correctly."
+        )
 
         # Ensure no side effects occurred.
         member.add_roles.assert_not_awaited()
         db.set_member_data.assert_not_called()
         db.update_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_state_await_code_unsw():
@@ -634,20 +711,20 @@ async def test_state_await_code_unsw():
             # Call
             with patch("iam.verify.get_code") as mock_get_code:
                 mock_get_code.return_value = code
-                with patch("iam.verify.proc_grant_rank") as \
-                    mock_proc_grant_rank:
-                    await state_await_code(db, ver_role, admin_channel, member,
-                        member_data, code)
+                with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
+                    await state_await_code(
+                        db, ver_role, admin_channel, member, member_data, code
+                    )
 
             # Ensure user entry in DB updated correctly.
             call_args_list = db.update_member_data.call_args_list
             assert len(call_args_list) == 2
             call_args = call_args_list[0].args
             assert call_args[0] == member.id
-            assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == \
-                {MemberKey.EMAIL_VER: True}
-            assert call_args[1][MemberKey.VER_TIME] >= before_time and \
-                call_args[1][MemberKey.VER_TIME] <= time()
+            assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == {
+                MemberKey.EMAIL_VER: True
+            }
+            assert before_time <= call_args[1][MemberKey.VER_TIME] <= time()
             call_args = call_args_list[1].args
             assert call_args == (member.id, {MemberKey.ID_VER: True})
 
@@ -658,6 +735,7 @@ async def test_state_await_code_unsw():
             member.send.assert_not_awaited()
             member.add_roles.assert_not_called()
             db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_state_await_code_non_unsw():
@@ -675,31 +753,34 @@ async def test_state_await_code_non_unsw():
         # Call
         with patch("iam.verify.get_code") as mock_get_code:
             mock_get_code.return_value = code
-            await state_await_code(db, ver_role, admin_channel, member,
-                member_data, code)
+            await state_await_code(
+                db, ver_role, admin_channel, member, member_data, code
+            )
 
         # Ensure user entry in DB updated correctly.
         call_args_list = db.update_member_data.call_args_list
         assert len(call_args_list) == 2
         call_args = call_args_list[0].args
         assert call_args[0] == member.id
-        assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == \
-            {MemberKey.EMAIL_VER: True}
-        assert call_args[1][MemberKey.VER_TIME] >= before_time and \
-            call_args[1][MemberKey.VER_TIME] <= time()
+        assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == {
+            MemberKey.EMAIL_VER: True
+        }
+        assert before_time <= call_args[1][MemberKey.VER_TIME] <= time()
 
         # Ensure user was sent prompt.
-        assert member.send.awaited_once_with("(3b) Please send a message with "
-            "a photo of your government-issued ID attached.")
+        assert member.send.awaited_once_with(
+            "(3b) Please send a message with "
+            "a photo of your government-issued ID attached."
+        )
 
         # Ensure user state updated to awaiting ID.
         call_args = call_args_list[1].args
-        assert call_args == (member.id,
-            {MemberKey.VER_STATE: State.AWAIT_ID})
+        assert call_args == (member.id, {MemberKey.VER_STATE: State.AWAIT_ID})
 
         # Ensure no side effects occurred.
         member.add_roles.assert_not_called()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_state_await_code_invalid_unsw():
@@ -719,17 +800,21 @@ async def test_state_await_code_invalid_unsw():
                 # Call
                 with patch("iam.verify.get_code") as mock_get_code:
                     mock_get_code.return_value = expected_code
-                    await state_await_code(db, ver_role, admin_channel, member,
-                        member_data, received_code)
+                    await state_await_code(
+                        db, ver_role, admin_channel, member, member_data, received_code
+                    )
 
-                # Ensure user was sent error.    
-                member.send.assert_awaited_once_with("That was not the "
+                # Ensure user was sent error.
+                member.send.assert_awaited_once_with(
+                    "That was not the "
                     "correct code. Please try again.\nYou can request another "
-                    f"email by typing `{PREFIX}resend`.")
+                    f"email by typing `{PREFIX}resend`."
+                )
 
                 # Ensure no side effects occurred.
                 member.add_roles.assert_not_called()
                 db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_state_await_code_invalid_non_unsw():
@@ -747,17 +832,21 @@ async def test_state_await_code_invalid_non_unsw():
             # Call
             with patch("iam.verify.get_code") as mock_get_code:
                 mock_get_code.return_value = expected_code
-                await state_await_code(db, ver_role, admin_channel, member,
-                    member_data, received_code)
+                await state_await_code(
+                    db, ver_role, admin_channel, member, member_data, received_code
+                )
 
-            # Ensure user was sent error.    
-            member.send.assert_awaited_once_with("That was not the "
+            # Ensure user was sent error.
+            member.send.assert_awaited_once_with(
+                "That was not the "
                 "correct code. Please try again.\nYou can request another "
-                f"email by typing `{PREFIX}resend`.")
+                f"email by typing `{PREFIX}resend`."
+            )
 
             # Ensure no side effects occurred.
             member.add_roles.assert_not_called()
             db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_resend_email_standard():
@@ -776,13 +865,15 @@ async def test_proc_resend_email_standard():
             await proc_resend_email(db, mail, member, member_data)
 
         # Ensure proc_send_email called.
-        mock_proc_send_email.assert_awaited_once_with(db, mail, member,
-            member_data, email)
+        mock_proc_send_email.assert_awaited_once_with(
+            db, mail, member, member_data, email
+        )
 
         # Ensure no side effects occurred.
         member.send.assert_not_awaited()
         member.add_roles.assert_not_called()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_resend_email_not_awaiting_code():
@@ -811,6 +902,7 @@ async def test_proc_resend_email_not_awaiting_code():
         member.add_roles.assert_not_called()
         db.set_member_data.assert_not_called()
 
+
 @pytest.mark.asyncio
 async def test_state_await_id_standard():
     """User sending attachments forwarded to admin channel."""
@@ -823,18 +915,18 @@ async def test_state_await_id_standard():
         attachments = [new_mock_attachment(i) for i in range(n_attach)]
 
         # Call
-        with patch("iam.verify.proc_forward_id_admins") as \
-            mock_proc_forward_id_admins:
-            await state_await_id(db, admin_channel, member, member_data,
-                attachments)
+        with patch("iam.verify.proc_forward_id_admins") as mock_proc_forward_id_admins:
+            await state_await_id(db, admin_channel, member, member_data, attachments)
 
         # Ensure proc_forward_id_admins called.
-        mock_proc_forward_id_admins.assert_awaited_once_with(db, member,
-            admin_channel, member_data, attachments)
+        mock_proc_forward_id_admins.assert_awaited_once_with(
+            db, member, admin_channel, member_data, attachments
+        )
 
         # Ensure no side effects occurred.
         member.add_roles.assert_not_called()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_state_await_id_no_attachments():
@@ -847,21 +939,21 @@ async def test_state_await_id_no_attachments():
     attachments = []
 
     # Call
-    with patch("iam.verify.proc_forward_id_admins") as \
-        mock_proc_forward_id_admins:
-        await state_await_id(db, admin_channel, member, member_data,
-            attachments)
+    with patch("iam.verify.proc_forward_id_admins") as mock_proc_forward_id_admins:
+        await state_await_id(db, admin_channel, member, member_data, attachments)
 
     # Ensure proc_forward_id_admins not called.
     mock_proc_forward_id_admins.assert_not_awaited()
 
     # Ensure user was sent error.
-    member.send.assert_awaited_once_with("No attachments received. Please try "
-        "again.")
+    member.send.assert_awaited_once_with(
+        "No attachments received. Please try " "again."
+    )
 
     # Ensure no side effects occurred.
     member.add_roles.assert_not_called()
     db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_forward_id_admins_standard():
@@ -878,15 +970,19 @@ async def test_proc_forward_id_admins_standard():
             attachments = [new_mock_attachment(i) for i in range(n_attach)]
 
             # Call
-            await proc_forward_id_admins(db, member, admin_channel,
-                member_data, attachments)
+            await proc_forward_id_admins(
+                db, member, admin_channel, member_data, attachments
+            )
 
             # Ensure attachments forwarded to admin channel.
-            admin_channel.send.assert_awaited_once_with("Received "
+            admin_channel.send.assert_awaited_once_with(
+                "Received "
                 f"attachment(s) from {member.mention}. Please verify that "
                 f"name on ID is `{full_name}`, then type `{PREFIX}verify "
                 f"approve {member.id}` or `{PREFIX}verify reject {member.id} "
-                "\"reason\"`.", files=[await a.to_file() for a in attachments])
+                '"reason"`.',
+                files=[await a.to_file() for a in attachments],
+            )
 
             # Ensure user entry in database updated accordingly.
             call_args_list = db.update_member_data.call_args_list
@@ -895,17 +991,18 @@ async def test_proc_forward_id_admins_standard():
             assert call_args == (member.id, {MemberKey.ID_MESSAGE: 1337})
 
             # Ensure notification sent to user.
-            member.send.assert_awaited_once_with("Your attachment(s) have "
-                "been forwarded to the execs. Please wait.")
+            member.send.assert_awaited_once_with(
+                "Your attachment(s) have " "been forwarded to the execs. Please wait."
+            )
 
             # Ensure user state updated to awaiting approval.
             call_args = call_args_list[1].args
-            assert call_args == (member.id,
-                {MemberKey.VER_STATE: State.AWAIT_APPROVAL})
+            assert call_args == (member.id, {MemberKey.VER_STATE: State.AWAIT_APPROVAL})
 
             # Ensure no side effects occurred.
             member.add_roles.assert_not_called()
             db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_exec_approve_standard():
@@ -923,23 +1020,25 @@ async def test_proc_exec_approve_standard():
 
     # Call
     with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
-        await proc_exec_approve(db, channel, member, join_announce_channel,
-            exec, ver_role)
+        await proc_exec_approve(
+            db, channel, member, join_announce_channel, exec, ver_role
+        )
 
     # Ensure user entry in database updated accordingly.
-    db.update_member_data.assert_called_once_with(member.id, {
-        MemberKey.ID_VER: True,
-        MemberKey.VER_EXEC: exec.id
-    })
+    db.update_member_data.assert_called_once_with(
+        member.id, {MemberKey.ID_VER: True, MemberKey.VER_EXEC: exec.id}
+    )
 
     # Ensure user granted rank.
-    mock_proc_grant_rank.assert_awaited_once_with(ver_role, channel,
-        join_announce_channel, member)
+    mock_proc_grant_rank.assert_awaited_once_with(
+        ver_role, channel, join_announce_channel, member
+    )
 
     # Ensure no side effects occurred.
     member.send.assert_not_awaited()
     member.add_roles.assert_not_called()
     db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_exec_approve_not_awaiting():
@@ -960,13 +1059,11 @@ async def test_proc_exec_approve_not_awaiting():
         # Call
         with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
             with pytest.raises(CheckFailed) as exc:
-                await proc_exec_approve(db, channel, member, None, exec,
-                    ver_role)
+                await proc_exec_approve(db, channel, member, None, exec, ver_role)
         await exc.value.notify()
 
         # Ensure error sent to channel.
-        channel.send.assert_awaited_once_with("That user is not awaiting "
-            "approval.")
+        channel.send.assert_awaited_once_with("That user is not awaiting " "approval.")
 
         # Ensure no side effects occurred.
         mock_proc_grant_rank.assert_not_awaited()
@@ -974,6 +1071,7 @@ async def test_proc_exec_approve_not_awaiting():
         member.add_roles.assert_not_called()
         db.update_member_data.assert_not_called()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_exec_approve_already_verified():
@@ -993,8 +1091,7 @@ async def test_proc_exec_approve_already_verified():
         # Call
         with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
             with pytest.raises(CheckFailed) as exc:
-                await proc_exec_approve(db, channel, member, None, exec,
-                    ver_role)
+                await proc_exec_approve(db, channel, member, None, exec, ver_role)
         await exc.value.notify()
 
         # Ensure error sent to channel.
@@ -1007,6 +1104,7 @@ async def test_proc_exec_approve_already_verified():
         db.update_member_data.assert_not_called()
         db.set_member_data.assert_not_called()
 
+
 @pytest.mark.asyncio
 async def test_proc_exec_approve_never_verifying():
     """Exec approving user never started verification sends error."""
@@ -1014,8 +1112,7 @@ async def test_proc_exec_approve_never_verifying():
         # Setup
         db = MagicMock()
         member = new_mock_user(0)
-        db.get_member_data = MagicMock(side_effect=
-            MemberNotFound(member.id, ""))
+        db.get_member_data = MagicMock(side_effect=MemberNotFound(member.id, ""))
         exec = new_mock_user(1)
         channel = new_mock_channel(2)
         ver_role = AsyncMock()
@@ -1023,13 +1120,13 @@ async def test_proc_exec_approve_never_verifying():
         # Call
         with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
             with pytest.raises(CheckFailed) as exc:
-                await proc_exec_approve(db, channel, member, None, exec,
-                    ver_role)
+                await proc_exec_approve(db, channel, member, None, exec, ver_role)
         await exc.value.notify()
 
         # Ensure error sent to channel.
-        channel.send.assert_awaited_once_with("That user is not currently "
-            "being verified.")
+        channel.send.assert_awaited_once_with(
+            "That user is not currently " "being verified."
+        )
 
         # Ensure no side effects occurred.
         mock_proc_grant_rank.assert_not_awaited()
@@ -1037,6 +1134,7 @@ async def test_proc_exec_approve_never_verifying():
         member.add_roles.assert_not_called()
         db.update_member_data.assert_not_called()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_exec_reject_standard():
@@ -1054,23 +1152,27 @@ async def test_proc_exec_reject_standard():
         await proc_exec_reject(db, channel, member, reason)
 
         # Ensure user entry in database updated accordingly.
-        db.update_member_data.assert_called_once_with(member.id, {
-            MemberKey.VER_STATE: None
-        })
+        db.update_member_data.assert_called_once_with(
+            member.id, {MemberKey.VER_STATE: None}
+        )
 
         # Ensure user was sent error.
-        member.send.assert_awaited_once_with("Your verification request has "
+        member.send.assert_awaited_once_with(
+            "Your verification request has "
             f"been denied for the following reason(s): `{reason}`.\n"
             f"You can start a new request by typing `{PREFIX}verify` in the "
-            "verification channel.")
+            "verification channel."
+        )
 
         # Ensure notification sent in channel.
-        channel.send.assert_awaited_once_with("Rejected verification request "
-            f"from {member.mention}.")
+        channel.send.assert_awaited_once_with(
+            "Rejected verification request " f"from {member.mention}."
+        )
 
         # Ensure no side effects occurred.
         member.add_roles.assert_not_called()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_exec_reject_not_awaiting():
@@ -1092,14 +1194,14 @@ async def test_proc_exec_reject_not_awaiting():
         await exc.value.notify()
 
         # Ensure error sent to channel.
-        channel.send.assert_awaited_once_with("That user is not awaiting "
-            "approval.")
+        channel.send.assert_awaited_once_with("That user is not awaiting " "approval.")
 
         # Ensure no side effects occurred.
         member.send.assert_not_awaited()
         member.add_roles.assert_not_called()
         db.update_member_data.assert_not_called()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_exec_reject_already_verified():
@@ -1128,6 +1230,7 @@ async def test_proc_exec_reject_already_verified():
         db.update_member_data.assert_not_called()
         db.set_member_data.assert_not_called()
 
+
 @pytest.mark.asyncio
 async def test_proc_exec_reject_never_verifying():
     """Exec rejecting user never started verification sends error."""
@@ -1135,8 +1238,7 @@ async def test_proc_exec_reject_never_verifying():
         # Setup
         db = MagicMock()
         member = new_mock_user(0)
-        db.get_member_data = MagicMock(side_effect=
-            MemberNotFound(member.id, ""))
+        db.get_member_data = MagicMock(side_effect=MemberNotFound(member.id, ""))
         channel = new_mock_channel(1)
 
         # Call
@@ -1145,8 +1247,9 @@ async def test_proc_exec_reject_never_verifying():
         await exc.value.notify()
 
         # Ensure error sent to channel.
-        channel.send.assert_awaited_once_with("That user is not currently "
-            "being verified.")
+        channel.send.assert_awaited_once_with(
+            "That user is not currently " "being verified."
+        )
 
         # Ensure no side effects occurred.
         member.send.assert_not_awaited()
@@ -1154,10 +1257,12 @@ async def test_proc_exec_reject_never_verifying():
         db.update_member_data.assert_not_called()
         db.set_member_data.assert_not_called()
 
+
 @pytest.mark.asyncio
 async def test_proc_display_pending_standard():
     """Send list of pending approvals on request."""
     pass
+
 
 @pytest.mark.asyncio
 async def test_proc_display_pending_none():
@@ -1172,8 +1277,8 @@ async def test_proc_display_pending_none():
     await proc_display_pending(db, guild, channel)
 
     # Ensure error sent in channel.
-    channel.send.assert_awaited_once_with("No members currently awaiting "
-        "approval.")
+    channel.send.assert_awaited_once_with("No members currently awaiting " "approval.")
+
 
 @pytest.mark.asyncio
 async def test_proc_resend_id_standard():
@@ -1190,8 +1295,9 @@ async def test_proc_resend_id_standard():
             db.get_member_data.return_value = member_data
             channel = new_mock_channel(1)
             attachments = [new_mock_attachment(i) for i in range(n_attach)]
-            channel.fetch_message.return_value = new_mock_message(n_attach,
-                attachments=attachments)
+            channel.fetch_message.return_value = new_mock_message(
+                n_attach, attachments=attachments
+            )
 
             # Call
             await proc_resend_id(db, channel, member)
@@ -1200,17 +1306,21 @@ async def test_proc_resend_id_standard():
             channel.fetch_message.assert_awaited_once_with(n_attach)
 
             # Ensure attachments forwarded to channel.
-            channel.send.assert_awaited_once_with("Previously received "
+            channel.send.assert_awaited_once_with(
+                "Previously received "
                 f"attachment(s) from {member.mention}. Please verify that "
                 f"name on ID is `{full_name}`, then type `{PREFIX}verify "
                 f"approve {member.id}` or `{PREFIX}verify reject {member.id} "
-                "\"reason\"`.", files=[await a.to_file() for a in attachments])
+                '"reason"`.',
+                files=[await a.to_file() for a in attachments],
+            )
 
             # Ensure no side effects occurred.
             member.send.assert_not_awaited()
             member.add_roles.assert_not_called()
             db.update_member_data.assert_not_called()
             db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_resend_id_not_awaiting():
@@ -1234,14 +1344,16 @@ async def test_proc_resend_id_not_awaiting():
             await exc.value.notify()
 
             # Ensure error sent in channel.
-            channel.send.assert_awaited_once_with("That user is not "
-                "awaiting approval.")
+            channel.send.assert_awaited_once_with(
+                "That user is not " "awaiting approval."
+            )
 
             # Ensure no side effects occurred.
             member.send.assert_not_awaited()
             member.add_roles.assert_not_called()
             db.update_member_data.assert_not_called()
             db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_resend_id_already_verified():
@@ -1264,8 +1376,7 @@ async def test_proc_resend_id_already_verified():
             await exc.value.notify()
 
             # Ensure error sent in channel.
-            channel.send.assert_awaited_once_with("That user is already "
-                "verified.")
+            channel.send.assert_awaited_once_with("That user is already " "verified.")
 
             # Ensure no side effects occurred.
             member.send.assert_not_awaited()
@@ -1273,14 +1384,14 @@ async def test_proc_resend_id_already_verified():
             db.update_member_data.assert_not_called()
             db.set_member_data.assert_not_called()
 
+
 @pytest.mark.asyncio
 async def test_proc_resend_id_never_verifying():
     """Send error if user never started verification."""
     # Setup
     db = MagicMock()
     member = new_mock_user(0)
-    db.get_member_data = MagicMock(side_effect=
-        MemberNotFound(member.id, ""))
+    db.get_member_data = MagicMock(side_effect=MemberNotFound(member.id, ""))
     channel = new_mock_channel(1)
 
     # Call
@@ -1289,14 +1400,16 @@ async def test_proc_resend_id_never_verifying():
     await exc.value.notify()
 
     # Ensure error sent in channel.
-    channel.send.assert_awaited_once_with("That user is not currently "
-        "being verified.")
+    channel.send.assert_awaited_once_with(
+        "That user is not currently " "being verified."
+    )
 
     # Ensure no side effects occurred.
     member.send.assert_not_awaited()
     member.add_roles.assert_not_called()
     db.update_member_data.assert_not_called()
     db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_resend_id_not_found():
@@ -1310,21 +1423,25 @@ async def test_proc_resend_id_not_found():
         member_data[MemberKey.VER_STATE] = State.AWAIT_APPROVAL
         db.get_member_data.return_value = member_data
         channel = new_mock_channel(1)
-        channel.fetch_message = MagicMock(side_effect=
-            NotFound(MagicMock(), MagicMock()))
+        channel.fetch_message = MagicMock(
+            side_effect=NotFound(MagicMock(), MagicMock())
+        )
 
         # Call
         await proc_resend_id(db, channel, member)
 
         # Ensure error sent in channel.
-        channel.send.assert_awaited_once_with("Could not find previous message"
-            " in this channel containing attachments! Perhaps it was deleted?")
+        channel.send.assert_awaited_once_with(
+            "Could not find previous message"
+            " in this channel containing attachments! Perhaps it was deleted?"
+        )
 
         # Ensure no side effects occurred.
         member.send.assert_not_awaited()
         member.add_roles.assert_not_called()
         db.update_member_data.assert_not_called()
         db.set_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_verify_manual_unsw_standard():
@@ -1342,8 +1459,16 @@ async def test_proc_verify_manual_unsw_standard():
 
             # Call
             with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
-                await proc_verify_manual(db, ver_role, channel,
-                    join_announce_channel, exec, member, full_name, zid)
+                await proc_verify_manual(
+                    db,
+                    ver_role,
+                    channel,
+                    join_announce_channel,
+                    exec,
+                    member,
+                    full_name,
+                    zid,
+                )
 
             # Ensure user entry in database created accordingly.
             member_data = make_def_member_data()
@@ -1356,19 +1481,21 @@ async def test_proc_verify_manual_unsw_standard():
             db.set_member_data.assert_called_once()
             call_args = db.set_member_data.call_args.args
             assert call_args[0] == member.id
-            assert call_args[1][MemberKey.VER_TIME] >= before_time and \
-                call_args[1][MemberKey.VER_TIME] < time()
-            assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == \
-                filter_dict(member_data, [MemberKey.VER_TIME])
+            assert before_time <= call_args[1][MemberKey.VER_TIME] < time()
+            assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == filter_dict(
+                member_data, [MemberKey.VER_TIME]
+            )
 
             # Ensure user granted rank.
-            mock_proc_grant_rank.assert_awaited_once_with(ver_role, channel,
-                join_announce_channel, member)
+            mock_proc_grant_rank.assert_awaited_once_with(
+                ver_role, channel, join_announce_channel, member
+            )
 
             # Ensure no side effects occurred.
             member.send.assert_not_awaited()
             member.add_roles.assert_not_called()
             db.update_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_verify_manual_unsw_invalid_zid():
@@ -1385,12 +1512,14 @@ async def test_proc_verify_manual_unsw_invalid_zid():
 
             # Call
             with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
-                await proc_verify_manual(db, ver_role, channel, None, exec,
-                    member, full_name, zid)
+                await proc_verify_manual(
+                    db, ver_role, channel, None, exec, member, full_name, zid
+                )
 
             # Ensure error sent in channel.
-            channel.send.assert_awaited_once_with("That is neither a valid "
-                "zID nor a valid email.")
+            channel.send.assert_awaited_once_with(
+                "That is neither a valid " "zID nor a valid email."
+            )
 
             # Ensure no side effects occurred.
             mock_proc_grant_rank.assert_not_awaited()
@@ -1398,6 +1527,7 @@ async def test_proc_verify_manual_unsw_invalid_zid():
             member.add_roles.assert_not_called()
             db.set_member_data.assert_not_called()
             db.update_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_verify_manual_non_unsw_standard():
@@ -1415,8 +1545,16 @@ async def test_proc_verify_manual_non_unsw_standard():
 
             # Call
             with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
-                await proc_verify_manual(db, ver_role, channel,
-                    join_announce_channel, exec, member, full_name, email)
+                await proc_verify_manual(
+                    db,
+                    ver_role,
+                    channel,
+                    join_announce_channel,
+                    exec,
+                    member,
+                    full_name,
+                    email,
+                )
 
             # Ensure user entry in database created accordingly.
             member_data = make_def_member_data()
@@ -1428,19 +1566,21 @@ async def test_proc_verify_manual_non_unsw_standard():
             db.set_member_data.assert_called_once()
             call_args = db.set_member_data.call_args.args
             assert call_args[0] == member.id
-            assert call_args[1][MemberKey.VER_TIME] >= before_time and \
-                call_args[1][MemberKey.VER_TIME] < time()
-            assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == \
-                filter_dict(member_data, [MemberKey.VER_TIME])
+            assert before_time <= call_args[1][MemberKey.VER_TIME] < time()
+            assert filter_dict(call_args[1], [MemberKey.VER_TIME]) == filter_dict(
+                member_data, [MemberKey.VER_TIME]
+            )
 
             # Ensure user granted rank.
-            mock_proc_grant_rank.assert_awaited_once_with(ver_role, channel,
-                join_announce_channel, member)
+            mock_proc_grant_rank.assert_awaited_once_with(
+                ver_role, channel, join_announce_channel, member
+            )
 
             # Ensure no side effects occurred.
             member.send.assert_not_awaited()
             member.add_roles.assert_not_called()
             db.update_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_verify_manual_non_unsw_invalid_email():
@@ -1457,12 +1597,14 @@ async def test_proc_verify_manual_non_unsw_invalid_email():
 
             # Call
             with patch("iam.verify.proc_grant_rank") as mock_proc_grant_rank:
-                await proc_verify_manual(db, ver_role, channel, None, exec,
-                    member, full_name, email)
+                await proc_verify_manual(
+                    db, ver_role, channel, None, exec, member, full_name, email
+                )
 
             # Ensure error sent in channel.
-            channel.send.assert_awaited_once_with("That is neither a valid "
-                "zID nor a valid email.")
+            channel.send.assert_awaited_once_with(
+                "That is neither a valid " "zID nor a valid email."
+            )
 
             # Ensure no side effects occurred.
             mock_proc_grant_rank.assert_not_awaited()
@@ -1470,6 +1612,7 @@ async def test_proc_verify_manual_non_unsw_invalid_email():
             member.add_roles.assert_not_called()
             db.set_member_data.assert_not_called()
             db.update_member_data.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_proc_grant_rank_standard():
@@ -1481,20 +1624,22 @@ async def test_proc_grant_rank_standard():
     ver_role = AsyncMock()
 
     # Call
-    await proc_grant_rank(ver_role, admin_channel, join_announce_channel,
-        member)
+    await proc_grant_rank(ver_role, admin_channel, join_announce_channel, member)
 
     # Ensure user was granted rank.
     member.add_roles.assert_awaited_once_with(ver_role)
 
     # Ensure notifications were sent.
-    member.send.assert_awaited_once_with("You are now verified. Welcome to "
+    member.send.assert_awaited_once_with(
+        "You are now verified. Welcome to "
         "the server! If you are interested in subscribing to our newsletter, "
-            f"try the `{PREFIX}newsletter` command.")
-    admin_channel.send.assert_awaited_once_with(f"{member.mention} is now "
-        "verified.")
-    join_announce_channel.send.assert_awaited_once_with("Welcome "
-        f"{member.mention} to PCSoc!")
+        f"try the `{PREFIX}newsletter` command."
+    )
+    admin_channel.send.assert_awaited_once_with(f"{member.mention} is now " "verified.")
+    join_announce_channel.send.assert_awaited_once_with(
+        "Welcome " f"{member.mention} to PCSoc!"
+    )
+
 
 @pytest.mark.asyncio
 async def test_proc_grant_rank_silent():
@@ -1506,8 +1651,9 @@ async def test_proc_grant_rank_silent():
     ver_role = AsyncMock()
 
     # Call
-    await proc_grant_rank(ver_role, admin_channel, join_announce_channel,
-        member, silent=True)
+    await proc_grant_rank(
+        ver_role, admin_channel, join_announce_channel, member, silent=True
+    )
 
     # Ensure user was granted rank.
     member.add_roles.assert_awaited_once_with(ver_role)

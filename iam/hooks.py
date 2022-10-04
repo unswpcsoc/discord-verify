@@ -1,16 +1,24 @@
 """Handle command permissions."""
 
-from logging import DEBUG, INFO
 from functools import wraps
 from inspect import iscoroutinefunction
-from discord import User, Member
-from discord.ext.commands import Context
+from logging import DEBUG, INFO
 
+# from discord import User, Member
+# from discord.ext.commands import Context
+from nextcord import User, Member
+
+from iam.config import (
+    PREFIX,
+    SERVER_ID,
+    VERIF_ROLE,
+    VER_CHANNEL,
+    ADMIN_CHANNEL,
+    ADMIN_ROLES,
+)
 from iam.db import MemberKey, MemberNotFound
 from iam.log import log_func
-from iam.config import (
-    PREFIX, SERVER_ID, VERIF_ROLE, VER_CHANNEL, ADMIN_CHANNEL, ADMIN_ROLES
-)
+
 
 class CheckFailed(Exception):
     """Event pre-execution check failed.
@@ -19,6 +27,7 @@ class CheckFailed(Exception):
         obj: Object to send error to on notify.
         msg: String representing error message to send on notify.
     """
+
     def __init__(self, obj, msg):
         """Init exception with given args.
 
@@ -36,6 +45,7 @@ class CheckFailed(Exception):
         """
         await self.obj.reply(self.msg)
 
+
 class CheckResult:
     """Store boolean, message result of a check.
 
@@ -43,6 +53,7 @@ class CheckResult:
         status: Boolean representing result of check.
         msg: String containing info message from check result.
     """
+
     def __init__(self, status, msg):
         """Init with given args.
         
@@ -52,6 +63,7 @@ class CheckResult:
         """
         self.status = status
         self.msg = msg
+
 
 def make_coro(func):
     """Turns a function into a coroutine without modifying its behaviour.
@@ -63,11 +75,14 @@ def make_coro(func):
         Coroutine of given function, or original function if already async.
     """
     if not iscoroutinefunction(func):
+
         @wraps(func)
         async def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
+
         return wrapper
     return func
+
 
 def pre(action):
     """Decorate function to execute a function before itself.
@@ -78,20 +93,27 @@ def pre(action):
             *args: Args supplied to function call.
             **kwargs: Keyword args supplied to function call.
     """
+
     def decorator(func):
         if iscoroutinefunction(func):
+
             @wraps(func)
             async def wrapper(*args, **kwargs):
                 if await make_coro(action)(func, *args, **kwargs):
                     return await func(*args, **kwargs)
+
         else:
+
             @wraps(func)
             def wrapper(*args, **kwargs):
                 if action(func, *args, **kwargs):
                     return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
-    
+
+
 def post(action):
     """Decorate function to execute a function after itself.
 
@@ -101,21 +123,28 @@ def post(action):
             *args: Args supplied to function call.
             **kwargs: Keyword args supplied to function call.
     """
+
     def decorator(func):
         if iscoroutinefunction(func):
+
             @wraps(func)
             async def wrapper(*args, **kwargs):
                 ret_val = await func(*args, **kwargs)
                 if await make_coro(action)(func, *args, **kwargs):
                     return ret_val
+
         else:
+
             @wraps(func)
             def wrapper(*args, **kwargs):
                 ret_val = func(*args, **kwargs)
                 if action(func, *args, **kwargs):
                     return ret_val
+
         return wrapper
+
     return decorator
+
 
 def log(logger, meta="", level=DEBUG):
     """Log function call.
@@ -124,11 +153,14 @@ def log(logger, meta="", level=DEBUG):
         meta: String representing info about function.
         level: Logging level to log at.
     """
+
     def wrapper(func, *args, **kwargs):
         info = [func.__name__, meta]
         log_func(logger, level, ": ".join(filter(None, info)), *args, **kwargs)
         return True
+
     return wrapper
+
 
 def log_attempt(logger, meta="", level=DEBUG):
     """Log function invoke attempt.
@@ -141,6 +173,7 @@ def log_attempt(logger, meta="", level=DEBUG):
     info = ["invoke attempt", meta]
     return log(logger, meta=" - ".join(filter(None, info)), level=level)
 
+
 def log_invoke(logger, meta="", level=INFO):
     """Log function invoke success.
 
@@ -152,6 +185,7 @@ def log_invoke(logger, meta="", level=INFO):
     info = ["invoke success", meta]
     return log(logger, meta=" - ".join(filter(None, info)), level=level)
 
+
 def log_success(logger, meta="", level=DEBUG):
     """Log function execute success.
 
@@ -162,6 +196,7 @@ def log_success(logger, meta="", level=DEBUG):
     """
     info = ["execute success", meta]
     return log(logger, meta=" - ".join(filter(None, info)), level=level)
+
 
 def check(check_func, level=DEBUG, notify=False):
     """Performs check on function call to determine if it should proceed.
@@ -181,6 +216,7 @@ def check(check_func, level=DEBUG, notify=False):
     Returns:
         An "action" function usable with the pre and post decorators.
     """
+
     async def action(func, cog, obj, *args, **kwargs):
         """Performs check on function call to determine if it should proceed.
         
@@ -195,12 +231,19 @@ def check(check_func, level=DEBUG, notify=False):
         res = await make_coro(check_func)(cog, obj, *args, **kwargs)
         if not res.status:
             if level is not None:
-                log_func(cog.logger, level, f"{func.__name__}: failed check " 
-                    f"'{check_func.__name__}'", *(obj, *args), **kwargs)
+                log_func(
+                    cog.logger,
+                    level,
+                    f"{func.__name__}: failed check " f"'{check_func.__name__}'",
+                    *(obj, *args),
+                    **kwargs,
+                )
             if notify:
                 raise CheckFailed(obj, res.msg)
         return res.status
+
     return action
+
 
 def has_verified_role(cog, obj, *args, **kwargs):
     """Checks that user that invoked function has the verified role.
@@ -221,6 +264,7 @@ def has_verified_role(cog, obj, *args, **kwargs):
     if member is None or VERIF_ROLE not in get_role_ids(member):
         return CheckResult(False, "You must be verified to do that.")
     return CheckResult(True, None)
+
 
 def was_verified_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function was verified in past.
@@ -251,6 +295,7 @@ def was_verified_user(cog, obj, *args, **kwargs):
         pass
     return CheckResult(False, "You must be verified to do that.")
 
+
 def is_unverified_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function is unverified.
 
@@ -270,6 +315,7 @@ def is_unverified_user(cog, obj, *args, **kwargs):
     if member is not None and VERIF_ROLE in get_role_ids(member):
         return CheckResult(False, "You are already verified.")
     return CheckResult(True, None)
+
 
 def verified_in_db(cog, obj, *args, **kwargs):
     """Checks that user that invoked function is verified in database.
@@ -293,8 +339,11 @@ def verified_in_db(cog, obj, *args, **kwargs):
             return CheckResult(True, None)
     except MemberNotFound:
         pass
-    return CheckResult(False, "Could not find your details in the database. "
-        "Please contact an admin.")
+    return CheckResult(
+        False,
+        "Could not find your details in the database. " "Please contact an admin.",
+    )
+
 
 def never_verified_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function was never verified in past.
@@ -322,6 +371,7 @@ def never_verified_user(cog, obj, *args, **kwargs):
             return CheckResult(True, None)
     return CheckResult(False, "You are already verified.")
 
+
 def is_admin_user(cog, obj, *args, **kwargs):
     """Checks that user that invoked function has at least one admin role.
 
@@ -342,6 +392,7 @@ def is_admin_user(cog, obj, *args, **kwargs):
         return CheckResult(False, "You are not authorised to do that.")
     return CheckResult(True, None)
 
+
 def is_guild_member(cog, obj, *args, **kwargs):
     """Checks that user that invoked function is member of guild.
     
@@ -358,9 +409,9 @@ def is_guild_member(cog, obj, *args, **kwargs):
         2. Error message to supply, if check failed.
     """
     if get_member(cog.bot, obj.author) is None:
-        return CheckResult(False, "You must be a member of the server to do "
-            "that.")
+        return CheckResult(False, "You must be a member of the server to do " "that.")
     return CheckResult(True, None)
+
 
 def in_ver_channel(cog, obj, *args, **kwargs):
     """Checks that function was invoked in verification channel.
@@ -377,9 +428,11 @@ def in_ver_channel(cog, obj, *args, **kwargs):
     """
     ver_channel = cog.guild.get_channel(VER_CHANNEL)
     if obj.channel.id != ver_channel.id:
-        return CheckResult(False, "That command can only be used in "
-            f"{ver_channel.mention}.")
+        return CheckResult(
+            False, "That command can only be used in " f"{ver_channel.mention}."
+        )
     return CheckResult(True, None)
+
 
 def in_admin_channel(cog, obj, *args, **kwargs):
     """Checks that function was invoked in admin channel.
@@ -395,9 +448,9 @@ def in_admin_channel(cog, obj, *args, **kwargs):
         2. Error message to supply, if check failed.
     """
     if obj.channel.id != ADMIN_CHANNEL:
-        return CheckResult(False, "You must be in the admin channel to do "
-            "that.")
+        return CheckResult(False, "You must be in the admin channel to do " "that.")
     return CheckResult(True, None)
+
 
 def in_dm_channel(cog, obj, *args, **kwargs):
     """Checks that function was invoked in DM channel.
@@ -415,6 +468,7 @@ def in_dm_channel(cog, obj, *args, **kwargs):
     if obj.guild is not None:
         return CheckResult(False, "You must be in a DM channel to do that.")
     return CheckResult(True, None)
+
 
 def is_human(cog, obj, *args, **kwargs):
     """Checks that function was invoked by human user.
@@ -435,6 +489,7 @@ def is_human(cog, obj, *args, **kwargs):
         return CheckResult(False, "You are not human.")
     return CheckResult(True, None)
 
+
 def is_not_command(cog, message, *args, **kwargs):
     """Checks that message that invoked function was not a command.
 
@@ -448,10 +503,12 @@ def is_not_command(cog, message, *args, **kwargs):
         1. Boolean result of check.
         2. Error message to supply, if check failed.
     """
-    if message.content.startswith(PREFIX) \
-        and cog.bot.get_command(message.content.split(" ")[0][1:]):
+    if message.content.startswith(PREFIX) and cog.bot.get_command(
+        message.content.split(" ")[0][1:]
+    ):
         return CheckResult(False, "That is a command.")
     return CheckResult(True, None)
+
 
 def get_member(bot, user):
     """Get member of guild given User object.
@@ -466,6 +523,7 @@ def get_member(bot, user):
         The Member object associated with given context.
     """
     return bot.get_guild(SERVER_ID).get_member(user.id)
+
 
 def get_role_ids(member):
     """Get list of IDs of all roles member has.
