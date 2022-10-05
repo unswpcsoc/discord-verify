@@ -7,7 +7,9 @@ from logging import DEBUG
 from re import search
 from time import time
 
+import nextcord
 from nextcord import Member, NotFound
+from nextcord.ext import application_checks
 # from discord.ext.commands import Cog, group, command
 # from discord import Member, NotFound
 from nextcord.ext.commands import Cog, group, command
@@ -915,6 +917,54 @@ class Verify(Cog, name=COG_NAME):
     @property
     def mail(self):
         return self.bot.get_cog("Mail")
+
+    @nextcord.slash_command(
+        description="",
+        guild_ids=[860941635047522374, 157263595128881153],
+    )
+    async def verify(self, interaction: nextcord.Interaction):
+        pass
+
+    @pre(log_attempt(LOG))
+    @pre(check(in_ver_channel, notify=True))
+    @pre(check(is_unverified_user, notify=True))
+    @pre(log_invoke(LOG))
+    @application_checks.
+    @verify.subcommand(
+        description="Begin verification process for user."
+    )
+    async def begin(self, interaction: nextcord.Interaction):
+        pass
+
+    @verify.subcommand(
+        description="Verify a member awaiting exec approval."
+    )
+    async def approve(self, interaction: nextcord.Interaction):
+        pass
+
+    @verify.subcommand(
+        description="Reject a member awaiting exec approval."
+    )
+    async def reject(self, interaction: nextcord.Interaction):
+        pass
+
+    @verify.subcommand(
+        description="Display list of members awaiting approval for verification."
+    )
+    async def pending(self, interaction: nextcord.Interaction):
+        pass
+
+    @verify.subcommand(
+        description="Retrieve stored photo of ID from member awaiting approval."
+    )
+    async def check(self, interaction: nextcord.Interaction):
+        pass
+
+    @verify.subcommand(
+        description="Manually verify a member with the supplied details."
+    )
+    async def manual(self, interaction: nextcord.Interaction):
+        pass
 
     @group(
         name="verify",
