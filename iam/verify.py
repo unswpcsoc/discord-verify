@@ -919,7 +919,7 @@ class Verify(Cog, name=COG_NAME):
         return self.bot.get_cog("Mail")
 
     @nextcord.slash_command(
-        description="",
+        description="Arc Verify Service",
         guild_ids=[860941635047522374, 157263595128881153],
     )
     async def verify(self, interaction: nextcord.Interaction):
@@ -929,7 +929,7 @@ class Verify(Cog, name=COG_NAME):
     @pre(check(in_ver_channel, notify=True))
     @pre(check(is_unverified_user, notify=True))
     @pre(log_invoke(LOG))
-    @application_checks.
+    @application_checks.application_command_before_invoke(log_attempt(LOG))
     @verify.subcommand(
         description="Begin verification process for user."
     )
